@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      documents: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          file_size: number
+          filename: string
+          id: string
+          mime_type: string
+          openai_file_id: string | null
+          original_name: string
+          processing_status: string | null
+          storage_path: string
+          updated_at: string
+          user_id: string
+          vector_store_file_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          file_size: number
+          filename: string
+          id?: string
+          mime_type: string
+          openai_file_id?: string | null
+          original_name: string
+          processing_status?: string | null
+          storage_path: string
+          updated_at?: string
+          user_id: string
+          vector_store_file_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          file_size?: number
+          filename?: string
+          id?: string
+          mime_type?: string
+          openai_file_id?: string | null
+          original_name?: string
+          processing_status?: string | null
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+          vector_store_file_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
