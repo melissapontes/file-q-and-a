@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Send, MessageCircle, Bot, User, Loader2 } from "lucide-react";
 
@@ -15,6 +17,8 @@ interface Message {
 }
 
 const Ask = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -26,6 +30,30 @@ const Ask = () => {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Check authentication
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-secondary flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if user is not authenticated
+  if (!user) {
+    return null;
+  }
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -188,12 +216,6 @@ const Ask = () => {
           </Card>
         </div>
 
-        <div className="mt-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            <strong>Nota:</strong> Para funcionalidade completa de RAG, conecte ao Supabase para 
-            integração com OpenAI e processamento de documentos.
-          </p>
-        </div>
       </div>
     </div>
   );
