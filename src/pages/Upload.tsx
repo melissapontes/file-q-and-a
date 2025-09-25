@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Upload as UploadIcon, FileText, AlertCircle, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Upload = () => {
   const [files, setFiles] = useState<File[]>([]);
@@ -58,22 +59,50 @@ const Upload = () => {
     setUploadProgress(0);
 
     try {
-      // Simular upload progress
-      for (let i = 0; i <= 100; i += 10) {
-        setUploadProgress(i);
-        await new Promise(resolve => setTimeout(resolve, 200));
+      let completedFiles = 0;
+      const totalFiles = files.length;
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          toast({
+            title: "Erro de autenticação",
+            description: "Você precisa estar logado para fazer upload.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const response = await supabase.functions.invoke('upload-document', {
+          body: formData,
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
+
+        if (response.error) {
+          throw new Error(response.error.message || 'Erro no upload');
+        }
+
+        completedFiles++;
+        setUploadProgress((completedFiles / totalFiles) * 100);
       }
 
       toast({
         title: "Upload concluído!",
-        description: `${files.length} arquivo(s) processado(s) com sucesso. O processamento pode levar alguns segundos.`,
+        description: `${files.length} arquivo(s) enviado(s) com sucesso. O processamento pode levar alguns segundos.`,
       });
 
       setFiles([]);
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
         title: "Erro no upload",
-        description: "Ocorreu um erro durante o upload. Tente novamente.",
+        description: error instanceof Error ? error.message : "Ocorreu um erro durante o upload. Tente novamente.",
         variant: "destructive",
       });
     } finally {
@@ -191,8 +220,8 @@ const Upload = () => {
 
         <div className="mt-6 text-center">
           <p className="text-sm text-muted-foreground">
-            <strong>Nota:</strong> Para funcionalidade completa com OpenAI Vector Store, 
-            conecte o projeto ao Supabase para processamento backend.
+            <strong>Nota:</strong> Sistema conectado ao Supabase Storage + OpenAI Vector Store. 
+            Configure sua OPENAI_API_KEY e OPENAI_VECTOR_STORE_ID para funcionalidade completa.
           </p>
         </div>
       </div>
