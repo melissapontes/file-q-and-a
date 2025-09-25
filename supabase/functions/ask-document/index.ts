@@ -137,7 +137,6 @@ serve(async (req) => {
         'OpenAI-Beta': 'assistants=v2',
       },
       body: JSON.stringify({
-        assistant_id: null, // We'll create inline
         model: 'gpt-4o-mini',
         instructions: `Você é um assistente RAG especializado em responder perguntas sobre documentos científicos. 
         Analise o conteúdo dos documentos fornecidos e responda às perguntas do usuário de forma precisa e detalhada.
