@@ -128,7 +128,34 @@ serve(async (req) => {
 
     console.log('Created thread:', threadId);
 
-    // Create and run assistant with file search
+    // Create assistant with file search capability
+    const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
+      },
+      body: JSON.stringify({
+        name: 'RAG Docs Assistant',
+        model: 'gpt-4o-mini',
+        instructions: `Você é um assistente RAG especializado em responder perguntas sobre documentos científicos.
+        Use somente as informações encontradas nos documentos. Se não encontrar a resposta, diga claramente. Responda em português.`,
+        tools: [ { type: 'file_search' } ]
+      })
+    });
+
+    if (!assistantResponse.ok) {
+      const error = await assistantResponse.text();
+      console.error('Assistant creation error:', error);
+      throw new Error(`Assistant creation error: ${error}`);
+    }
+
+    const assistantData = await assistantResponse.json();
+    const assistantId = assistantData.id;
+    console.log('Created assistant:', assistantId);
+
+    // Create and run assistant with access to our vector store
     const runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
       method: 'POST',
       headers: {
@@ -137,21 +164,7 @@ serve(async (req) => {
         'OpenAI-Beta': 'assistants=v2',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        instructions: `Você é um assistente RAG especializado em responder perguntas sobre documentos científicos. 
-        Analise o conteúdo dos documentos fornecidos e responda às perguntas do usuário de forma precisa e detalhada.
-        
-        INSTRUÇÕES IMPORTANTES:
-        - Use apenas as informações encontradas nos documentos
-        - Cite partes específicas dos documentos quando relevante
-        - Se não encontrar a informação nos documentos, diga claramente
-        - Responda sempre em português
-        - Seja preciso e detalhado nas suas respostas`,
-        tools: [
-          {
-            type: 'file_search'
-          }
-        ],
+        assistant_id: assistantId,
         tool_resources: {
           file_search: {
             vector_store_ids: [vectorStoreId]
