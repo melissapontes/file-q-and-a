@@ -81,40 +81,147 @@ serve(async (req) => {
 
     console.log(`Found ${documents.length} documents for user`);
 
-    // Create OpenAI assistant or use existing vector store
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Get file IDs from processed documents
+    const fileIds = documents
+      .filter(doc => doc.openai_file_id)
+      .map(doc => doc.openai_file_id);
+
+    if (fileIds.length === 0) {
+      return new Response(
+        JSON.stringify({
+          answer: 'Nenhum documento foi processado com sucesso ainda. Aguarde o processamento dos documentos ou faça upload de novos arquivos.'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    console.log(`Using ${fileIds.length} processed files for RAG`);
+
+    // Create a thread for the conversation
+    const threadResponse = await fetch('https://api.openai.com/v1/threads', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
         messages: [
           {
-            role: 'system',
-            content: `Você é um assistente RAG que responde perguntas baseado nos documentos que o usuário fez upload. 
-            O usuário tem ${documents.length} documento(s) processado(s): ${documents.map(d => d.original_name).join(', ')}.
-            Responda em português e de forma clara e útil. Se a pergunta não puder ser respondida com base nos documentos disponíveis, informe isso claramente.`
-          },
-          {
             role: 'user',
-            content: `Pergunta sobre meus documentos: ${question}`
+            content: question,
           }
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
+        ]
       }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('OpenAI API error:', error);
-      throw new Error(`OpenAI API error: ${error}`);
+    if (!threadResponse.ok) {
+      const error = await threadResponse.text();
+      console.error('Thread creation error:', error);
+      throw new Error(`Thread creation error: ${error}`);
     }
 
-    const data = await response.json();
-    const answer = data.choices[0].message.content;
+    const threadData = await threadResponse.json();
+    const threadId = threadData.id;
+
+    console.log('Created thread:', threadId);
+
+    // Create and run assistant with file search
+    const runResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
+      },
+      body: JSON.stringify({
+        assistant_id: null, // We'll create inline
+        model: 'gpt-4o-mini',
+        instructions: `Você é um assistente RAG especializado em responder perguntas sobre documentos científicos. 
+        Analise o conteúdo dos documentos fornecidos e responda às perguntas do usuário de forma precisa e detalhada.
+        
+        INSTRUÇÕES IMPORTANTES:
+        - Use apenas as informações encontradas nos documentos
+        - Cite partes específicas dos documentos quando relevante
+        - Se não encontrar a informação nos documentos, diga claramente
+        - Responda sempre em português
+        - Seja preciso e detalhado nas suas respostas`,
+        tools: [
+          {
+            type: 'file_search'
+          }
+        ],
+        tool_resources: {
+          file_search: {
+            vector_store_ids: [vectorStoreId]
+          }
+        }
+      }),
+    });
+
+    if (!runResponse.ok) {
+      const error = await runResponse.text();
+      console.error('Run creation error:', error);
+      throw new Error(`Run creation error: ${error}`);
+    }
+
+    const runData = await runResponse.json();
+    const runId = runData.id;
+
+    console.log('Created run:', runId);
+
+    // Poll for completion
+    let runStatus = 'queued';
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds timeout
+
+    while (runStatus !== 'completed' && runStatus !== 'failed' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      
+      const statusResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/runs/${runId}`, {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'OpenAI-Beta': 'assistants=v2',
+        },
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        runStatus = statusData.status;
+        console.log('Run status:', runStatus);
+      }
+      
+      attempts++;
+    }
+
+    if (runStatus !== 'completed') {
+      throw new Error(`Run did not complete successfully. Status: ${runStatus}`);
+    }
+
+    // Get the assistant's response
+    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${threadId}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'OpenAI-Beta': 'assistants=v2',
+      },
+    });
+
+    if (!messagesResponse.ok) {
+      const error = await messagesResponse.text();
+      console.error('Messages retrieval error:', error);
+      throw new Error(`Messages retrieval error: ${error}`);
+    }
+
+    const messagesData = await messagesResponse.json();
+    const assistantMessage = messagesData.data.find((msg: any) => msg.role === 'assistant');
+    
+    if (!assistantMessage || !assistantMessage.content || assistantMessage.content.length === 0) {
+      throw new Error('No response from assistant');
+    }
+
+    const answer = assistantMessage.content[0].text.value;
 
     console.log('Generated answer successfully');
 
