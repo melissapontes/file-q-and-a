@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Send, MessageCircle, Bot, User, Loader2 } from "lucide-react";
 
 interface Message {
@@ -37,22 +38,37 @@ const Ask = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentQuestion = inputMessage;
     setInputMessage("");
     setIsLoading(true);
 
     try {
-      // Simular resposta da IA
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const { data, error } = await supabase.functions.invoke('ask-document', {
+        body: { question: currentQuestion }
+      });
+
+      if (error) throw error;
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: `Desculpe, não posso processar sua pergunta "${inputMessage}" no momento. Para funcionalidade completa de RAG com pesquisa de arquivos, é necessário conectar ao Supabase e configurar a integração com OpenAI. Por enquanto, esta é apenas uma interface de demonstração.`,
+        content: data.answer || 'Desculpe, não consegui processar sua pergunta.',
         sender: 'ai',
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
+      console.error('Error asking document:', error);
+      
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.',
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+
+      setMessages(prev => [...prev, errorMessage]);
+      
       toast({
         title: "Erro",
         description: "Ocorreu um erro ao processar sua mensagem.",
