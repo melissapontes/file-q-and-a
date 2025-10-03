@@ -97,7 +97,9 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Using vector store ${vectorStoreId} for RAG with ${fileIds.length} files`);
+    console.log(`Using vector store ${vectorStoreId} for RAG with ${fileIds.length} files from DB`);
+    console.log('File IDs in DB:', fileIds);
+    console.log('Note: Assistant will search ALL files in vector store, including manual uploads');
 
     // Step 1: Create an Assistant with file_search
     console.log('Creating Assistant...');
@@ -110,7 +112,17 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         name: 'Nefrologia Veterinária RAG',
-        instructions: 'Você é um assistente especializado em nefrologia veterinária. Use a ferramenta file_search para buscar informações nos documentos fornecidos. Sempre cite as fontes dos documentos quando disponível. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos. Se não encontrar informações relevantes nos documentos, informe claramente.',
+        instructions: `Você é um assistente especializado em nefrologia veterinária. 
+
+INSTRUÇÕES IMPORTANTES:
+1. Use a ferramenta file_search para buscar em TODOS os documentos do vector store
+2. Procure especificamente por artigos como "canine_calcium_oxalate_uroliths" e outros documentos relevantes
+3. SEMPRE cite o nome exato do documento fonte (exemplo: "Segundo o documento canine_calcium_oxalate_uroliths...")
+4. Se encontrar informações em múltiplos documentos, cite todos eles
+5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais
+6. Se não encontrar informações relevantes, liste quais documentos você consultou
+
+Sua tarefa é buscar e sintetizar informações dos documentos disponíveis no vector store.`,
         model: 'gpt-4o-mini',
         tools: [{ type: 'file_search' }],
         tool_resources: {
