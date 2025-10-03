@@ -85,12 +85,21 @@ const Ask = () => {
       };
 
       setMessages(prev => [...prev, aiMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error asking document:', error);
+      
+      // Extract detailed error message
+      let errorDetails = 'Erro desconhecido ao processar sua pergunta.';
+      
+      if (error?.message) {
+        errorDetails = error.message;
+      } else if (typeof error === 'string') {
+        errorDetails = error;
+      }
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: 'Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.',
+        content: `❌ **Erro ao processar pergunta:**\n\n${errorDetails}\n\nPor favor, tente novamente ou entre em contato com o suporte se o problema persistir.`,
         sender: 'ai',
         timestamp: new Date(),
       };
@@ -98,8 +107,8 @@ const Ask = () => {
       setMessages(prev => [...prev, errorMessage]);
       
       toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao processar sua mensagem.",
+        title: "Erro ao processar pergunta",
+        description: errorDetails,
         variant: "destructive",
       });
     } finally {

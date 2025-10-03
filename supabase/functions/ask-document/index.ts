@@ -99,43 +99,66 @@ serve(async (req) => {
 
     console.log(`Using vector store for RAG`);
 
-    // Call OpenAI Responses API with file_search
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    // Call OpenAI Chat Completions API with file_search
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-mini',
-        input: [
+        model: 'gpt-4o-mini',
+        messages: [
           { 
             role: 'system', 
-            content: 'Você é um assistente de nefrologia veterinária. Use os documentos do Vector Store, cite as fontes e não dê diagnóstico definitivo.' 
+            content: 'Você é um assistente de nefrologia veterinária. Use os documentos fornecidos para responder às perguntas. Sempre cite as fontes quando possível e nunca dê diagnósticos definitivos - apenas forneça informações baseadas nos documentos.' 
           },
           { 
             role: 'user', 
             content: question 
           }
         ],
-        tools: [{ type: 'file_search' }],
-        file_search: { 
-          vector_store_ids: [vectorStoreId] 
-        }
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'search_documents',
+            description: 'Busca informações nos documentos veterinários sobre nefrologia',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'A consulta para buscar nos documentos'
+                }
+              },
+              required: ['query']
+            }
+          }
+        }],
+        tool_choice: 'auto'
       }),
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error('OpenAI API error:', error);
-      throw new Error(`OpenAI API error: ${error}`);
+      const errorText = await response.text();
+      let errorDetails = errorText;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorDetails = errorJson.error?.message || errorText;
+      } catch (e) {
+        // Keep original error text if not JSON
+      }
+      
+      console.error('OpenAI API error:', errorDetails);
+      throw new Error(`Erro da API OpenAI: ${errorDetails}`);
     }
 
     const data = await response.json();
-    console.log('OpenAI response:', JSON.stringify(data));
+    console.log('OpenAI response received');
 
     // Extract answer from response
-    const answer = data.output?.[0]?.content || data.choices?.[0]?.message?.content || 'Desculpe, não consegui gerar uma resposta.';
+    const answer = data.choices?.[0]?.message?.content || 'Desculpe, não consegui gerar uma resposta com base nos documentos.';
 
     console.log('Generated answer successfully');
 
@@ -148,10 +171,20 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in ask-document function:', error);
+    
+    // Extract specific error message
+    let errorMessage = 'Erro interno do servidor';
+    let errorDetails = '';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      errorDetails = error.stack || '';
+    }
+    
     return new Response(
       JSON.stringify({ 
-        error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: errorMessage,
+        details: errorDetails
       }),
       {
         status: 500,
