@@ -32,6 +32,66 @@ serve(async (req) => {
     console.log('Processing question:', question);
     console.log(`Using vector store: ${vectorStoreId}`);
 
+    // Detect if user is asking to list all documents
+    const isListingRequest = /\b(listar|lista|nomes|todos os|all|list)\b.*\b(artigos?|documentos?|arquivos?|papers?|files?)\b/i.test(question) ||
+                             /\b(artigos?|documentos?|arquivos?|papers?|files?)\b.*\b(listar|lista|nomes|todos os|all|list)\b/i.test(question);
+
+    if (isListingRequest) {
+      console.log('Detected listing request - returning all files from vector store');
+      
+      // Direct listing mode: return ALL files without using Assistant
+      const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'OpenAI-Beta': 'assistants=v2',
+        },
+      });
+
+      if (!filesResponse.ok) {
+        const error = await filesResponse.text();
+        console.error('Error listing files:', error);
+        throw new Error(`Erro ao listar arquivos: ${error}`);
+      }
+
+      const filesData = await filesResponse.json();
+      
+      if (!filesData.data || filesData.data.length === 0) {
+        return new Response(
+          JSON.stringify({ answer: 'Nenhum documento encontrado no vector store.' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get file details (filename) for each file ID
+      const fileDetails = await Promise.all(
+        filesData.data.map(async (file: any) => {
+          try {
+            const detailResponse = await fetch(`https://api.openai.com/v1/files/${file.id}`, {
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+              },
+            });
+            if (detailResponse.ok) {
+              const detail = await detailResponse.json();
+              return `• ${detail.filename || file.id} (ID: ${file.id})`;
+            }
+            return `• ${file.id}`;
+          } catch (e) {
+            return `• ${file.id}`;
+          }
+        })
+      );
+
+      const answer = `📚 **Documentos disponíveis no vector store (${filesData.data.length} artigos):**\n\n${fileDetails.join('\n')}`;
+      console.log('Listed all files successfully');
+
+      return new Response(
+        JSON.stringify({ answer }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Normal RAG flow continues below (unchanged)
     // Step 0: List all files in the vector store
     console.log('Listing all files in vector store...');
     const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
