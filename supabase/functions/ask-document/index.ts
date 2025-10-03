@@ -70,7 +70,7 @@ ${filesList}
 
 INSTRUÇÕES CRÍTICAS:
 1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos listados acima
-2. Configure a busca com max_num_results=20 para garantir que mais documentos sejam consultados
+2. Realize uma busca ampla, cobrindo múltiplos documentos e trechos relevantes dos arquivos
 3. Para perguntas sobre listar documentos, procure por termos genéricos que estejam em todos os documentos (como "abstract", "introduction", "methods")
 4. SEMPRE cite o nome/ID exato do arquivo fonte na sua resposta
 5. Se a pergunta pedir para listar documentos, retorne TODOS os IDs de arquivo que você encontrou
@@ -84,7 +84,7 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
         tool_resources: {
           file_search: {
             vector_store_ids: [vectorStoreId],
-            max_num_results: 20  // Force more comprehensive search
+            
           }
         }
       }),
