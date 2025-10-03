@@ -32,6 +32,27 @@ serve(async (req) => {
     console.log('Processing question:', question);
     console.log(`Using vector store: ${vectorStoreId}`);
 
+    // Step 0: List all files in the vector store
+    console.log('Listing all files in vector store...');
+    const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'OpenAI-Beta': 'assistants=v2',
+      },
+    });
+
+    let filesList = 'Arquivos disponíveis no vector store: (nenhum encontrado)';
+    if (filesResponse.ok) {
+      const filesData = await filesResponse.json();
+      if (filesData.data && filesData.data.length > 0) {
+        const fileNames = filesData.data.map((f: any) => f.id).join(', ');
+        filesList = `Arquivos disponíveis no vector store (${filesData.data.length} arquivos): ${fileNames}`;
+        console.log(filesList);
+      }
+    } else {
+      console.error('Could not list files:', await filesResponse.text());
+    }
+
     // Step 1: Create an Assistant with file_search
     console.log('Creating Assistant...');
     const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
@@ -45,20 +66,25 @@ serve(async (req) => {
         name: 'Nefrologia Veterinária RAG',
         instructions: `Você é um assistente especializado em nefrologia veterinária. 
 
-INSTRUÇÕES IMPORTANTES:
-1. Use a ferramenta file_search para buscar em TODOS os documentos do vector store
-2. Procure especificamente por artigos como "canine_calcium_oxalate_uroliths" e outros documentos relevantes
-3. SEMPRE cite o nome exato do documento fonte (exemplo: "Segundo o documento canine_calcium_oxalate_uroliths...")
-4. Se encontrar informações em múltiplos documentos, cite todos eles
-5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais
-6. Se não encontrar informações relevantes, liste quais documentos você consultou
+${filesList}
 
-Sua tarefa é buscar e sintetizar informações dos documentos disponíveis no vector store.`,
+INSTRUÇÕES CRÍTICAS:
+1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos listados acima
+2. Configure a busca com max_num_results=20 para garantir que mais documentos sejam consultados
+3. Para perguntas sobre listar documentos, procure por termos genéricos que estejam em todos os documentos (como "abstract", "introduction", "methods")
+4. SEMPRE cite o nome/ID exato do arquivo fonte na sua resposta
+5. Se a pergunta pedir para listar documentos, retorne TODOS os IDs de arquivo que você encontrou
+6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
+
+Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sintetizar as informações encontradas.`,
         model: 'gpt-4o-mini',
-        tools: [{ type: 'file_search' }],
+        tools: [{ 
+          type: 'file_search',
+        }],
         tool_resources: {
           file_search: {
-            vector_store_ids: [vectorStoreId]
+            vector_store_ids: [vectorStoreId],
+            max_num_results: 20  // Force more comprehensive search
           }
         }
       }),
