@@ -23,8 +23,54 @@ serve(async (req) => {
       throw new Error('Missing required environment variables: OPENAI_API_KEY or OPENAI_VECTOR_STORE_ID');
     }
 
-    // Parse request body
-    const { question } = await req.json();
+    // Parse request - can be JSON or FormData
+    const contentType = req.headers.get('content-type') || '';
+    let question = '';
+    let uploadedFileIds: string[] = [];
+
+    if (contentType.includes('multipart/form-data')) {
+      // Handle file uploads
+      const formData = await req.formData();
+      question = formData.get('question') as string;
+      const files = formData.getAll('files') as File[];
+
+      console.log(`Processing question with ${files.length} attached files`);
+
+      // Upload files temporarily to OpenAI
+      for (const file of files) {
+        try {
+          const fileBuffer = await file.arrayBuffer();
+          const blob = new Blob([fileBuffer], { type: file.type });
+          
+          const uploadFormData = new FormData();
+          uploadFormData.append('file', blob, file.name);
+          uploadFormData.append('purpose', 'assistants');
+
+          const uploadResponse = await fetch('https://api.openai.com/v1/files', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+            },
+            body: uploadFormData,
+          });
+
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            uploadedFileIds.push(uploadData.id);
+            console.log(`Uploaded file: ${file.name} (ID: ${uploadData.id})`);
+          } else {
+            console.error(`Failed to upload file ${file.name}:`, await uploadResponse.text());
+          }
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+        }
+      }
+    } else {
+      // JSON request (no files)
+      const body = await req.json();
+      question = body.question;
+    }
+
     if (!question) {
       throw new Error('Question is required');
     }
@@ -180,8 +226,21 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     const thread = await threadResponse.json();
     console.log('Thread created:', thread.id);
 
-    // Step 3: Add user message to Thread
+    // Step 3: Add user message to Thread (with attached files if any)
     console.log('Adding message to thread...');
+    const messageBody: any = {
+      role: 'user',
+      content: question
+    };
+
+    if (uploadedFileIds.length > 0) {
+      messageBody.attachments = uploadedFileIds.map(fileId => ({
+        file_id: fileId,
+        tools: [{ type: 'file_search' }]
+      }));
+      console.log(`Attaching ${uploadedFileIds.length} files to message`);
+    }
+
     const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
       method: 'POST',
       headers: {
@@ -189,10 +248,7 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
         'Content-Type': 'application/json',
         'OpenAI-Beta': 'assistants=v2',
       },
-      body: JSON.stringify({
-        role: 'user',
-        content: question
-      }),
+      body: JSON.stringify(messageBody),
     });
 
     if (!messageResponse.ok) {
@@ -306,6 +362,23 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     }
 
     console.log('Generated answer successfully');
+
+    // Cleanup uploaded files
+    if (uploadedFileIds.length > 0) {
+      console.log('Cleaning up temporary files...');
+      for (const fileId of uploadedFileIds) {
+        try {
+          await fetch(`https://api.openai.com/v1/files/${fileId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+            },
+          });
+        } catch (e) {
+          console.log(`Could not delete file ${fileId}:`, e);
+        }
+      }
+    }
 
     return new Response(
       JSON.stringify({ answer }),
