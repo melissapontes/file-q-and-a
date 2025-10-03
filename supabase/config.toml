@@ -1,4 +1,7 @@
 project_id = "gvgwajegdhqjmhqkkgwl"
 
 [functions.ask-document]
+verify_jwt = false
+
+[functions.upload-document]
 verify_jwt = true

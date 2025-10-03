@@ -1,12 +1,9 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Send, MessageCircle, Bot, User, Loader2 } from "lucide-react";
 
 interface Message {
@@ -17,12 +14,10 @@ interface Message {
 }
 
 const Ask = () => {
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Olá! Eu sou seu assistente RAG. Faça perguntas sobre os documentos que você fez upload e eu tentarei responder com base no conteúdo deles.',
+      content: 'Olá! Eu sou seu assistente RAG. Faça perguntas sobre os documentos no Vector Store e eu tentarei responder com base no conteúdo deles.',
       sender: 'ai',
       timestamp: new Date(),
     }
@@ -30,30 +25,6 @@ const Ask = () => {
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-
-  // Check authentication
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  // Show loading screen while checking authentication
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-secondary flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render if user is not authenticated
-  if (!user) {
-    return null;
-  }
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -71,11 +42,20 @@ const Ask = () => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ask-document', {
-        body: { question: currentQuestion }
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ask-document`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question: currentQuestion })
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get answer');
+      }
+
+      const data = await response.json();
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),

@@ -1,6 +1,5 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,37 +16,12 @@ serve(async (req) => {
     console.log('Ask document function called');
 
     // Get environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
 
-    if (!supabaseUrl || !supabaseServiceRoleKey || !openaiApiKey || !vectorStoreId) {
-      throw new Error('Missing required environment variables');
+    if (!openaiApiKey || !vectorStoreId) {
+      throw new Error('Missing required environment variables: OPENAI_API_KEY or OPENAI_VECTOR_STORE_ID');
     }
-
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    // Get user from auth header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(jwt);
-
-    if (userError || !user) {
-      throw new Error('Invalid user token');
-    }
-
-    console.log('User authenticated:', user.id);
 
     // Parse request body
     const { question } = await req.json();
@@ -56,50 +30,7 @@ serve(async (req) => {
     }
 
     console.log('Processing question:', question);
-
-    // Get user's documents
-    const { data: documents, error: docError } = await supabase
-      .from('documents')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('processing_status', 'completed');
-
-    if (docError) {
-      throw new Error(`Error fetching documents: ${docError.message}`);
-    }
-
-    if (!documents || documents.length === 0) {
-      return new Response(
-        JSON.stringify({
-          answer: 'Você ainda não fez upload de nenhum documento processado. Faça upload de documentos primeiro para poder fazer perguntas sobre eles.'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    console.log(`Found ${documents.length} documents for user`);
-
-    // Get file IDs from processed documents
-    const fileIds = documents
-      .filter(doc => doc.openai_file_id)
-      .map(doc => doc.openai_file_id);
-
-    if (fileIds.length === 0) {
-      return new Response(
-        JSON.stringify({
-          answer: 'Nenhum documento foi processado com sucesso ainda. Aguarde o processamento dos documentos ou faça upload de novos arquivos.'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    console.log(`Using vector store ${vectorStoreId} for RAG with ${fileIds.length} files from DB`);
-    console.log('File IDs in DB:', fileIds);
-    console.log('Note: Assistant will search ALL files in vector store, including manual uploads');
+    console.log(`Using vector store: ${vectorStoreId}`);
 
     // Step 1: Create an Assistant with file_search
     console.log('Creating Assistant...');
