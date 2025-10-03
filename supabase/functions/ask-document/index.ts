@@ -97,68 +97,184 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Using vector store for RAG`);
+    console.log(`Using vector store ${vectorStoreId} for RAG with ${fileIds.length} files`);
 
-    // Call OpenAI Chat Completions API with file_search
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Step 1: Create an Assistant with file_search
+    console.log('Creating Assistant...');
+    const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
       },
       body: JSON.stringify({
+        name: 'Nefrologia Veterinária RAG',
+        instructions: 'Você é um assistente especializado em nefrologia veterinária. Use a ferramenta file_search para buscar informações nos documentos fornecidos. Sempre cite as fontes dos documentos quando disponível. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos. Se não encontrar informações relevantes nos documentos, informe claramente.',
         model: 'gpt-4o-mini',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'Você é um assistente de nefrologia veterinária. Use os documentos fornecidos para responder às perguntas. Sempre cite as fontes quando possível e nunca dê diagnósticos definitivos - apenas forneça informações baseadas nos documentos.' 
-          },
-          { 
-            role: 'user', 
-            content: question 
+        tools: [{ type: 'file_search' }],
+        tool_resources: {
+          file_search: {
+            vector_store_ids: [vectorStoreId]
           }
-        ],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'search_documents',
-            description: 'Busca informações nos documentos veterinários sobre nefrologia',
-            parameters: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'A consulta para buscar nos documentos'
-                }
-              },
-              required: ['query']
-            }
-          }
-        }],
-        tool_choice: 'auto'
+        }
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorDetails = errorText;
-      
-      try {
-        const errorJson = JSON.parse(errorText);
-        errorDetails = errorJson.error?.message || errorText;
-      } catch (e) {
-        // Keep original error text if not JSON
-      }
-      
-      console.error('OpenAI API error:', errorDetails);
-      throw new Error(`Erro da API OpenAI: ${errorDetails}`);
+    if (!assistantResponse.ok) {
+      const error = await assistantResponse.text();
+      console.error('Error creating assistant:', error);
+      throw new Error(`Erro ao criar assistente: ${error}`);
     }
 
-    const data = await response.json();
-    console.log('OpenAI response received');
+    const assistant = await assistantResponse.json();
+    console.log('Assistant created:', assistant.id);
 
-    // Extract answer from response
-    const answer = data.choices?.[0]?.message?.content || 'Desculpe, não consegui gerar uma resposta com base nos documentos.';
+    // Step 2: Create a Thread
+    console.log('Creating Thread...');
+    const threadResponse = await fetch('https://api.openai.com/v1/threads', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!threadResponse.ok) {
+      const error = await threadResponse.text();
+      console.error('Error creating thread:', error);
+      throw new Error(`Erro ao criar thread: ${error}`);
+    }
+
+    const thread = await threadResponse.json();
+    console.log('Thread created:', thread.id);
+
+    // Step 3: Add user message to Thread
+    console.log('Adding message to thread...');
+    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
+      },
+      body: JSON.stringify({
+        role: 'user',
+        content: question
+      }),
+    });
+
+    if (!messageResponse.ok) {
+      const error = await messageResponse.text();
+      console.error('Error adding message:', error);
+      throw new Error(`Erro ao adicionar mensagem: ${error}`);
+    }
+
+    console.log('Message added to thread');
+
+    // Step 4: Run the Assistant
+    console.log('Running assistant...');
+    const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2',
+      },
+      body: JSON.stringify({
+        assistant_id: assistant.id
+      }),
+    });
+
+    if (!runResponse.ok) {
+      const error = await runResponse.text();
+      console.error('Error running assistant:', error);
+      throw new Error(`Erro ao executar assistente: ${error}`);
+    }
+
+    const run = await runResponse.json();
+    console.log('Run started:', run.id);
+
+    // Step 5: Poll for completion
+    let runStatus = run.status;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds max
+
+    while (runStatus !== 'completed' && runStatus !== 'failed' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+      
+      const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'OpenAI-Beta': 'assistants=v2',
+        },
+      });
+
+      if (!statusResponse.ok) {
+        const error = await statusResponse.text();
+        console.error('Error checking run status:', error);
+        throw new Error(`Erro ao verificar status: ${error}`);
+      }
+
+      const statusData = await statusResponse.json();
+      runStatus = statusData.status;
+      attempts++;
+      console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
+    }
+
+    if (runStatus === 'failed') {
+      throw new Error('O assistente falhou ao processar a pergunta');
+    }
+
+    if (runStatus !== 'completed') {
+      throw new Error('Timeout: O assistente demorou muito para responder');
+    }
+
+    // Step 6: Get the assistant's response
+    console.log('Retrieving assistant response...');
+    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'OpenAI-Beta': 'assistants=v2',
+      },
+    });
+
+    if (!messagesResponse.ok) {
+      const error = await messagesResponse.text();
+      console.error('Error retrieving messages:', error);
+      throw new Error(`Erro ao recuperar mensagens: ${error}`);
+    }
+
+    const messagesData = await messagesResponse.json();
+    const assistantMessages = messagesData.data.filter((msg: any) => msg.role === 'assistant');
+    
+    let answer = 'Desculpe, não consegui gerar uma resposta.';
+    
+    if (assistantMessages.length > 0) {
+      const lastMessage = assistantMessages[0];
+      const textContent = lastMessage.content.find((c: any) => c.type === 'text');
+      if (textContent) {
+        answer = textContent.text.value;
+      }
+    }
+
+    console.log('Response retrieved successfully');
+
+    // Cleanup: Delete the assistant (optional, to avoid accumulating assistants)
+    try {
+      await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'OpenAI-Beta': 'assistants=v2',
+        },
+      });
+      console.log('Assistant deleted');
+    } catch (e) {
+      console.log('Could not delete assistant:', e);
+    }
 
     console.log('Generated answer successfully');
 
