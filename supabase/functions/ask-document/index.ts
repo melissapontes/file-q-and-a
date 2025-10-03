@@ -27,6 +27,7 @@ serve(async (req) => {
     const contentType = req.headers.get('content-type') || '';
     let question = '';
     let uploadedFileIds: string[] = [];
+    let imageContext = '';
 
     if (contentType.includes('multipart/form-data')) {
       // Handle file uploads
@@ -36,33 +37,85 @@ serve(async (req) => {
 
       console.log(`Processing question with ${files.length} attached files`);
 
-      // Upload files temporarily to OpenAI
+      // Process files based on type
       for (const file of files) {
         try {
-          const fileBuffer = await file.arrayBuffer();
-          const blob = new Blob([fileBuffer], { type: file.type });
-          
-          const uploadFormData = new FormData();
-          uploadFormData.append('file', blob, file.name);
-          uploadFormData.append('purpose', 'assistants');
+          const fileName = file.name.toLowerCase();
+          const isImage = fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png');
 
-          const uploadResponse = await fetch('https://api.openai.com/v1/files', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-            },
-            body: uploadFormData,
-          });
+          if (isImage) {
+            // Process image with Vision API
+            console.log(`Processing image file with Vision API: ${file.name}`);
+            const fileBuffer = await file.arrayBuffer();
+            const base64Image = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
+            const mimeType = file.type || 'image/jpeg';
 
-          if (uploadResponse.ok) {
-            const uploadData = await uploadResponse.json();
-            uploadedFileIds.push(uploadData.id);
-            console.log(`Uploaded file: ${file.name} (ID: ${uploadData.id})`);
+            // Use Vision API to extract text from image
+            const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: 'Por favor, extraia TODAS as informações deste documento médico/laudo. Liste todos os valores, resultados, diagnósticos e observações presentes. Seja detalhado e preciso.'
+                      },
+                      {
+                        type: 'image_url',
+                        image_url: {
+                          url: `data:${mimeType};base64,${base64Image}`
+                        }
+                      }
+                    ]
+                  }
+                ],
+                max_tokens: 2000
+              }),
+            });
+
+            if (visionResponse.ok) {
+              const visionData = await visionResponse.json();
+              const extractedText = visionData.choices[0]?.message?.content || '';
+              imageContext += `\n\n**Conteúdo extraído de ${file.name}:**\n${extractedText}\n`;
+              console.log(`Extracted text from image: ${file.name}`);
+            } else {
+              console.error(`Failed to process image ${file.name}:`, await visionResponse.text());
+              imageContext += `\n\n[Erro ao processar imagem: ${file.name}]\n`;
+            }
           } else {
-            console.error(`Failed to upload file ${file.name}:`, await uploadResponse.text());
+            // Upload text documents to OpenAI for file_search
+            const fileBuffer = await file.arrayBuffer();
+            const blob = new Blob([fileBuffer], { type: file.type });
+            
+            const uploadFormData = new FormData();
+            uploadFormData.append('file', blob, file.name);
+            uploadFormData.append('purpose', 'assistants');
+
+            const uploadResponse = await fetch('https://api.openai.com/v1/files', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+              },
+              body: uploadFormData,
+            });
+
+            if (uploadResponse.ok) {
+              const uploadData = await uploadResponse.json();
+              uploadedFileIds.push(uploadData.id);
+              console.log(`Uploaded document: ${file.name} (ID: ${uploadData.id})`);
+            } else {
+              console.error(`Failed to upload file ${file.name}:`, await uploadResponse.text());
+            }
           }
         } catch (error) {
-          console.error(`Error uploading file ${file.name}:`, error);
+          console.error(`Error processing file ${file.name}:`, error);
         }
       }
     } else {
@@ -226,11 +279,19 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     const thread = await threadResponse.json();
     console.log('Thread created:', thread.id);
 
-    // Step 3: Add user message to Thread (with attached files if any)
+    // Step 3: Add user message to Thread (with attached files and image context)
     console.log('Adding message to thread...');
+    
+    // Combine question with image context if available
+    let fullQuestion = question;
+    if (imageContext) {
+      fullQuestion += imageContext;
+      console.log('Added image context to question');
+    }
+
     const messageBody: any = {
       role: 'user',
-      content: question
+      content: fullQuestion
     };
 
     if (uploadedFileIds.length > 0) {
@@ -238,7 +299,7 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
         file_id: fileId,
         tools: [{ type: 'file_search' }]
       }));
-      console.log(`Attaching ${uploadedFileIds.length} files to message`);
+      console.log(`Attaching ${uploadedFileIds.length} document files to message`);
     }
 
     const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
