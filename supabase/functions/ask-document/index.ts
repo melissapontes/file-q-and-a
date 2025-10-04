@@ -397,12 +397,53 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     const assistantMessages = messagesData.data.filter((msg: any) => msg.role === 'assistant');
     
     let answer = 'Desculpe, não consegui gerar uma resposta.';
+    let references: string[] = [];
     
     if (assistantMessages.length > 0) {
       const lastMessage = assistantMessages[0];
       const textContent = lastMessage.content.find((c: any) => c.type === 'text');
       if (textContent) {
-        answer = textContent.text.value;
+        let rawAnswer = textContent.text.value;
+        
+        // Process annotations (citations)
+        const annotations = textContent.text.annotations || [];
+        console.log(`Found ${annotations.length} annotations in response`);
+        
+        // Extract file citations and build references list
+        const citationMap = new Map<string, string>();
+        
+        for (const annotation of annotations) {
+          if (annotation.type === 'file_citation') {
+            const fileId = annotation.file_citation?.file_id;
+            if (fileId && !citationMap.has(fileId)) {
+              // Fetch file details to get the filename
+              try {
+                const fileResponse = await fetch(`https://api.openai.com/v1/files/${fileId}`, {
+                  headers: {
+                    'Authorization': `Bearer ${openaiApiKey}`,
+                  },
+                });
+                
+                if (fileResponse.ok) {
+                  const fileData = await fileResponse.json();
+                  const filename = fileData.filename || fileId;
+                  citationMap.set(fileId, filename);
+                  references.push(filename);
+                  console.log(`Reference found: ${filename}`);
+                }
+              } catch (e) {
+                console.error(`Error fetching file details for ${fileId}:`, e);
+                citationMap.set(fileId, fileId);
+                references.push(fileId);
+              }
+            }
+          }
+        }
+        
+        // Remove citation markers from the text (【4:0†source】 format)
+        answer = rawAnswer.replace(/【\d+:\d+†[^】]+】/g, '');
+        
+        console.log(`Processed answer with ${references.length} unique references`);
       }
     }
 
@@ -442,7 +483,7 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     }
 
     return new Response(
-      JSON.stringify({ answer }),
+      JSON.stringify({ answer, references }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
