@@ -34,14 +34,17 @@ const Auth = () => {
 
     try {
       if (isForgotPassword) {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/auth`,
+        const { data, error } = await supabase.functions.invoke("reset-password", {
+          body: { 
+            email,
+            redirectTo: `${window.location.origin}/auth`,
+          },
         });
 
-        if (error) {
+        if (error || data?.error) {
           toast({
             title: "Erro ao enviar email",
-            description: error.message,
+            description: data?.error || error.message,
             variant: "destructive",
           });
           return;
