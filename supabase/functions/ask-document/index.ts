@@ -489,7 +489,7 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     }
 
     return new Response(
-      JSON.stringify({ answer }),
+      JSON.stringify({ answer, references }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
