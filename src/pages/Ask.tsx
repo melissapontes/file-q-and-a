@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText } from "lucide-react";
+import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 interface Message {
@@ -13,7 +13,6 @@ interface Message {
   content: string;
   sender: 'user' | 'ai';
   timestamp: Date;
-  references?: string[];
 }
 
 const Ask = () => {
@@ -112,7 +111,6 @@ const Ask = () => {
         content: data.answer || 'Desculpe, não consegui processar sua pergunta.',
         sender: 'ai',
         timestamp: new Date(),
-        references: data.references || [],
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -192,12 +190,12 @@ const Ask = () => {
                         {message.sender === 'ai' ? (
                           <ReactMarkdown
                             components={{
-                              p: ({ children }) => <p className="mb-2">{children}</p>,
-                              strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                              p: ({ children }) => <p className="mb-2 inline">{children}</p>,
+                              strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
                               em: ({ children }) => <em className="italic">{children}</em>,
                               ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
-                              li: ({ children }) => <li className="mb-1">{children}</li>,
+                              ol: ({ children }) => <ol className="list-decimal mb-2 space-y-1">{children}</ol>,
+                              li: ({ children }) => <li className="inline">{children}</li>,
                               code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded text-xs">{children}</code>,
                               pre: ({ children }) => <pre className="bg-muted p-2 rounded my-2 overflow-x-auto">{children}</pre>,
                             }}
@@ -208,22 +206,6 @@ const Ask = () => {
                           <p className="whitespace-pre-wrap">{message.content}</p>
                         )}
                       </div>
-                      
-                      {message.references && message.references.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-border/50">
-                          <div className="flex items-center gap-2 mb-2">
-                            <FileText size={14} className="text-muted-foreground" />
-                            <span className="text-xs font-semibold text-muted-foreground">Referências:</span>
-                          </div>
-                          <div className="space-y-1">
-                            {message.references.map((ref, idx) => (
-                              <p key={idx} className="text-xs text-muted-foreground pl-4">
-                                {idx + 1}. {ref}
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
                       <p className="text-xs opacity-70 mt-2">
                         {message.timestamp.toLocaleTimeString()}

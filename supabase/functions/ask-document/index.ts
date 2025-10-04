@@ -409,14 +409,13 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
         const annotations = textContent.text.annotations || [];
         console.log(`Found ${annotations.length} annotations in response`);
         
-        // Extract file citations and build references list
+        // Build a map of file IDs to filenames
         const citationMap = new Map<string, string>();
         
         for (const annotation of annotations) {
           if (annotation.type === 'file_citation') {
             const fileId = annotation.file_citation?.file_id;
             if (fileId && !citationMap.has(fileId)) {
-              // Fetch file details to get the filename
               try {
                 const fileResponse = await fetch(`https://api.openai.com/v1/files/${fileId}`, {
                   headers: {
@@ -428,22 +427,29 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
                   const fileData = await fileResponse.json();
                   const filename = fileData.filename || fileId;
                   citationMap.set(fileId, filename);
-                  references.push(filename);
                   console.log(`Reference found: ${filename}`);
                 }
               } catch (e) {
                 console.error(`Error fetching file details for ${fileId}:`, e);
                 citationMap.set(fileId, fileId);
-                references.push(fileId);
               }
             }
           }
         }
         
-        // Remove citation markers from the text (【4:0†source】 format)
-        answer = rawAnswer.replace(/【\d+:\d+†[^】]+】/g, '');
+        // Replace citation markers with inline references
+        answer = rawAnswer.replace(/【\d+:\d+†source】/g, (match: string) => {
+          // Extract the annotation index from the match
+          const annotationIndex = parseInt(match.match(/【(\d+):/)?.[1] || '0');
+          if (annotations[annotationIndex]?.type === 'file_citation') {
+            const fileId = annotations[annotationIndex].file_citation?.file_id;
+            const filename = citationMap.get(fileId) || fileId;
+            return ` **[${filename}]**`;
+          }
+          return '';
+        });
         
-        console.log(`Processed answer with ${references.length} unique references`);
+        console.log(`Processed answer with ${citationMap.size} unique references`);
       }
     }
 
@@ -483,7 +489,7 @@ Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sinteti
     }
 
     return new Response(
-      JSON.stringify({ answer, references }),
+      JSON.stringify({ answer }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
