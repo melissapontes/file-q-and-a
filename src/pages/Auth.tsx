@@ -10,6 +10,7 @@ import { LogIn, UserPlus, Mail, Lock, ArrowLeft } from "lucide-react";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,7 +33,26 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      if (isLogin) {
+      if (isForgotPassword) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth`,
+        });
+
+        if (error) {
+          toast({
+            title: "Erro ao enviar email",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        toast({
+          title: "Email enviado!",
+          description: "Verifique sua caixa de entrada para redefinir sua senha.",
+        });
+        setIsForgotPassword(false);
+      } else if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -98,12 +118,14 @@ const Auth = () => {
             Voltar ao início
           </Link>
           <h1 className="text-3xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">
-            {isLogin ? "Fazer Login" : "Criar Conta"}
+            {isForgotPassword ? "Recuperar Senha" : isLogin ? "Fazer Login" : "Criar Conta"}
           </h1>
           <p className="text-muted-foreground">
-            {isLogin 
-              ? "Entre para acessar o sistema RAG" 
-              : "Crie sua conta para começar"
+            {isForgotPassword
+              ? "Digite seu email para receber instruções"
+              : isLogin 
+                ? "Entre para acessar o sistema RAG" 
+                : "Crie sua conta para começar"
             }
           </p>
         </div>
@@ -126,27 +148,29 @@ const Auth = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password" className="flex items-center gap-2">
-                <Lock size={16} />
-                Senha
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-                className="bg-secondary border-glass"
-              />
-              {!isLogin && (
-                <p className="text-xs text-muted-foreground">
-                  Mínimo 6 caracteres
-                </p>
-              )}
-            </div>
+            {!isForgotPassword && (
+              <div className="space-y-2">
+                <Label htmlFor="password" className="flex items-center gap-2">
+                  <Lock size={16} />
+                  Senha
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                  className="bg-secondary border-glass"
+                />
+                {!isLogin && (
+                  <p className="text-xs text-muted-foreground">
+                    Mínimo 6 caracteres
+                  </p>
+                )}
+              </div>
+            )}
 
             <Button
               type="submit"
@@ -157,26 +181,40 @@ const Auth = () => {
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  {isLogin ? "Entrando..." : "Criando conta..."}
+                  {isForgotPassword ? "Enviando..." : isLogin ? "Entrando..." : "Criando conta..."}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  {isLogin ? <LogIn size={20} /> : <UserPlus size={20} />}
-                  {isLogin ? "Entrar" : "Criar Conta"}
+                  {isForgotPassword ? <Mail size={20} /> : isLogin ? <LogIn size={20} /> : <UserPlus size={20} />}
+                  {isForgotPassword ? "Enviar Email" : isLogin ? "Entrar" : "Criar Conta"}
                 </div>
               )}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-6 text-center space-y-3">
+            {!isForgotPassword && isLogin && (
+              <button
+                type="button"
+                onClick={() => setIsForgotPassword(true)}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
+              >
+                Esqueceu sua senha?
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => {
+                setIsForgotPassword(false);
+                setIsLogin(!isLogin);
+              }}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors block w-full"
             >
-              {isLogin 
-                ? "Não tem uma conta? Criar conta" 
-                : "Já tem uma conta? Fazer login"
+              {isForgotPassword
+                ? "Voltar ao login"
+                : isLogin 
+                  ? "Não tem uma conta? Criar conta" 
+                  : "Já tem uma conta? Fazer login"
               }
             </button>
           </div>
