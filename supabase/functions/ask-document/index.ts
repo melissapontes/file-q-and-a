@@ -235,6 +235,12 @@ INSTRUÇÕES CRÍTICAS:
 5. Se a pergunta pedir para listar documentos, retorne TODOS os IDs de arquivo que você encontrou
 6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
 
+FORMATAÇÃO DA RESPOSTA:
+- Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
+- Deixe uma linha em branco entre cada tópico numerado
+- Coloque o texto logo após o número, na mesma linha (exemplo: "1. Texto do tópico")
+- Ao citar a fonte, coloque em negrito logo após a informação no mesmo parágrafo
+
 Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sintetizar as informações encontradas.`,
         model: 'gpt-4o-mini',
         tools: [{ 
