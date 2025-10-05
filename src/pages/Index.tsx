@@ -19,8 +19,7 @@ const Index = () => {
             </h1>
             
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              Upload de documentos PDF, TXT, MD e DOCX para criar um sistema RAG inteligente. 
-              Faça perguntas e obtenha respostas precisas baseadas no conteúdo dos seus arquivos.
+              Pergunte ao RAG Nefro & Uro e obtenha respostas precisas baseadas no conteúdo dos seus arquivos.
             </p>
           </div>
 
@@ -32,7 +31,7 @@ const Index = () => {
             >
               <Link to="/upload" className="flex items-center gap-2">
                 <Upload size={20} />
-                Começar Upload
+                Upload
               </Link>
             </Button>
             
@@ -44,7 +43,7 @@ const Index = () => {
             >
               <Link to="/ask" className="flex items-center gap-2">
                 <MessageCircle size={20} />
-                Fazer Perguntas
+                Pergunte
               </Link>
             </Button>
           </div>
@@ -71,7 +70,7 @@ const Index = () => {
             </div>
             <h3 className="text-xl font-bold mb-4">RAG Inteligente</h3>
             <p className="text-muted-foreground leading-relaxed">
-              Tecnologia de Retrieval-Augmented Generation para respostas precisas 
+              Tecnologia de Retrieval-Augmented Generation (RAG) para respostas precisas 
               baseadas no conteúdo dos seus documentos.
             </p>
           </Card>
