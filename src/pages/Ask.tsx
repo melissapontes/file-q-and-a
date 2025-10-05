@@ -20,7 +20,7 @@ const Ask = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Olá! Eu sou seu assistente RAG. Faça perguntas sobre os documentos no Vector Store e eu tentarei responder com base no conteúdo deles.\n\n📎 Você pode anexar arquivos:\n• 📄 Documentos: PDF, TXT, MD, DOCX (para busca semântica)\n• 🖼️ Imagens: JPG, JPEG, PNG (laudos médicos serão analisados com OCR/Vision)',
+      content: 'Olá! Eu sou seu RAG Nefro & Uro Vet. Faça perguntas sobre os documentos que você me forneceu e eu tentarei responder com base no conteúdo deles',
       sender: 'ai',
       timestamp: new Date(),
     }
