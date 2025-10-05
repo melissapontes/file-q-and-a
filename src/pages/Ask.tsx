@@ -155,20 +155,20 @@ const Ask = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-secondary p-6">
-      <div className="container mx-auto max-w-4xl h-[calc(100vh-8rem)]">
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">
+    <div className="min-h-screen bg-gradient-secondary p-2 sm:p-4 md:p-6">
+      <div className="container mx-auto max-w-4xl h-[calc(100vh-5rem)] sm:h-[calc(100vh-8rem)]">
+        <div className="text-center mb-3 sm:mb-6">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
             Pergunte ao RAG
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-xs sm:text-base text-muted-foreground">
             Faça perguntas sobre seus documentos e obtenha respostas inteligentes
           </p>
         </div>
 
         <div className="flex flex-col h-full">
-          <Card className="flex-1 p-6 bg-glass border-glass backdrop-blur-xl shadow-soft mb-4">
-            <ScrollArea className="h-full pr-4">
+          <Card className="flex-1 p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft mb-2 sm:mb-4">
+            <ScrollArea className="h-full pr-2 sm:pr-4">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
@@ -253,16 +253,16 @@ const Ask = () => {
             </ScrollArea>
           </Card>
 
-          <Card className="p-4 bg-glass border-glass backdrop-blur-xl" {...getRootProps()}>
+          <Card className="p-2 sm:p-4 bg-glass border-glass backdrop-blur-xl" {...getRootProps()}>
             {attachedFiles.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-2 sm:mb-3 flex flex-wrap gap-2">
                 {attachedFiles.map((file, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-secondary rounded-full text-sm"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-secondary rounded-full text-xs sm:text-sm"
                   >
-                    <Paperclip size={14} />
-                    <span className="max-w-[200px] truncate">{file.name}</span>
+                    <Paperclip size={12} className="sm:w-[14px] sm:h-[14px]" />
+                    <span className="max-w-[120px] sm:max-w-[200px] truncate">{file.name}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -271,7 +271,7 @@ const Ask = () => {
                       className="hover:text-destructive"
                       disabled={isLoading}
                     >
-                      <X size={14} />
+                      <X size={12} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                   </div>
                 ))}
@@ -280,22 +280,22 @@ const Ask = () => {
 
             {isDragActive && (
               <div className="absolute inset-0 bg-gradient-accent border-2 border-dashed border-primary rounded-lg flex items-center justify-center z-10">
-                <p className="text-lg text-primary font-semibold">Solte os arquivos aqui...</p>
+                <p className="text-base sm:text-lg text-primary font-semibold">Solte os arquivos aqui...</p>
               </div>
             )}
 
-            <div className="flex gap-3 items-end">
+            <div className="flex gap-2 sm:gap-3 items-end">
               <div className="flex-1">
                 <Textarea
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Digite sua pergunta sobre os documentos..."
-                  className="min-h-[60px] resize-none bg-background border-border"
+                  placeholder="Digite sua pergunta..."
+                  className="min-h-[48px] sm:min-h-[60px] resize-none bg-background border-border text-sm sm:text-base"
                   disabled={isLoading}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2">
                 <Button
                   onClick={() => {
                     const input = document.createElement('input');
@@ -311,26 +311,26 @@ const Ask = () => {
                   disabled={isLoading}
                   variant="outline"
                   size="lg"
-                  className="h-[60px]"
+                  className="h-[48px] sm:h-[60px] w-[48px] sm:w-auto px-2 sm:px-4"
                 >
-                  <Paperclip size={20} />
+                  <Paperclip size={18} className="sm:w-[20px] sm:h-[20px]" />
                 </Button>
                 <Button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading}
-                  className="bg-gradient-primary hover:opacity-90 shadow-glow h-[60px]"
+                  className="bg-gradient-primary hover:opacity-90 shadow-glow h-[48px] sm:h-[60px] w-[48px] sm:w-auto px-2 sm:px-4"
                   size="lg"
                 >
                   {isLoading ? (
-                    <Loader2 size={20} className="animate-spin" />
+                    <Loader2 size={18} className="animate-spin sm:w-[20px] sm:h-[20px]" />
                   ) : (
-                    <Send size={20} />
+                    <Send size={18} className="sm:w-[20px] sm:h-[20px]" />
                   )}
                 </Button>
               </div>
             </div>
             
-            <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+            <div className="hidden sm:flex items-center gap-2 mt-3 text-xs text-muted-foreground">
               <MessageCircle size={12} />
               <span>Pressione Enter para enviar, Shift+Enter para quebrar linha • Arraste arquivos ou clique no 📎</span>
             </div>

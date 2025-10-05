@@ -15,13 +15,13 @@ const Navigation = () => {
 
   return (
     <nav className="bg-glass border-b border-glass backdrop-blur-xl">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          <Link to="/" className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
+        <div className="flex items-center justify-between gap-2">
+          <Link to="/" className="text-lg sm:text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent whitespace-nowrap">
             RAG AI
           </Link>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             {!loading && (
               <>
                 {user ? (
@@ -34,14 +34,14 @@ const Navigation = () => {
                         asChild
                         className={location.pathname === path ? "shadow-glow" : ""}
                       >
-                        <Link to={path} className="flex items-center gap-2">
+                        <Link to={path} className="flex items-center gap-1 sm:gap-2">
                           <Icon size={16} />
-                          {label}
+                          <span className="hidden sm:inline">{label}</span>
                         </Link>
                       </Button>
                     ))}
-                    <div className="flex items-center gap-2 ml-2 pl-2 border-l border-glass">
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
+                    <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-glass">
+                      <span className="text-xs sm:text-sm text-muted-foreground hidden md:flex items-center gap-1">
                         <User size={14} />
                         {user.email}
                       </span>
@@ -49,10 +49,10 @@ const Navigation = () => {
                         variant="ghost"
                         size="sm"
                         onClick={signOut}
-                        className="flex items-center gap-2"
+                        className="flex items-center gap-1 sm:gap-2"
                       >
                         <LogOut size={16} />
-                        Sair
+                        <span className="hidden sm:inline">Sair</span>
                       </Button>
                     </div>
                   </>
@@ -63,9 +63,9 @@ const Navigation = () => {
                     asChild
                     className="shadow-glow"
                   >
-                    <Link to="/auth" className="flex items-center gap-2">
+                    <Link to="/auth" className="flex items-center gap-1 sm:gap-2">
                       <LogIn size={16} />
-                      Entrar
+                      <span className="hidden sm:inline">Entrar</span>
                     </Link>
                   </Button>
                 )}
