@@ -187,7 +187,7 @@ const Ask = () => {
                           ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[80%]'
                           : 'bg-secondary/50 flex-1'
                       }`}
-                      style={message.sender === 'user' ? { color: '#3598c9' } : {}}
+                      style={message.sender === 'user' ? { color: '#555555' } : {}}
                     >
                       <div className="text-base leading-relaxed prose prose-base max-w-none dark:prose-invert">
                         {message.sender === 'ai' ? (
