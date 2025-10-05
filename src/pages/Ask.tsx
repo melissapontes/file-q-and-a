@@ -293,7 +293,7 @@ const Ask = () => {
                   onKeyPress={handleKeyPress}
                   placeholder="Digite sua pergunta..."
                   className="min-h-[48px] sm:min-h-[60px] resize-none border-border text-sm sm:text-base"
-                  style={{ color: '##666666', backgroundColor: '#d9d9d9' }}
+                  style={{ color: '##FFFFFF', backgroundColor: '##666666' }}
                   disabled={isLoading}
                 />
               </div>
