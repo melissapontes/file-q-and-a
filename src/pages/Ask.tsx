@@ -292,8 +292,8 @@ const Ask = () => {
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Digite sua pergunta..."
-                  className="min-h-[48px] sm:min-h-[60px] resize-none bg-background border-border text-sm sm:text-base"
-                  style={{ color: '#3598c9' }}
+                  className="min-h-[48px] sm:min-h-[60px] resize-none border-border text-sm sm:text-base"
+                  style={{ color: '#3598c9', backgroundColor: '#b1f1df' }}
                   disabled={isLoading}
                 />
               </div>
