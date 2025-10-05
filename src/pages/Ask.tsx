@@ -184,9 +184,10 @@ const Ask = () => {
                     <div
                       className={`p-5 rounded-2xl ${
                         message.sender === 'user'
-                          ? 'bg-gradient-primary text-white max-w-[80%]'
+                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[80%]'
                           : 'bg-secondary/50 flex-1'
                       }`}
+                      style={message.sender === 'user' ? { color: '#3598c9' } : {}}
                     >
                       <div className="text-base leading-relaxed prose prose-base max-w-none dark:prose-invert">
                         {message.sender === 'ai' ? (
@@ -292,6 +293,7 @@ const Ask = () => {
                   onKeyPress={handleKeyPress}
                   placeholder="Digite sua pergunta..."
                   className="min-h-[48px] sm:min-h-[60px] resize-none bg-background border-border text-sm sm:text-base"
+                  style={{ color: '#3598c9' }}
                   disabled={isLoading}
                 />
               </div>
