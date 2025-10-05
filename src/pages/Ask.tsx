@@ -177,7 +177,7 @@ const Ask = () => {
                   >
                     {message.sender === 'ai' && (
                       <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground">
-                        A
+                        R
                       </div>
                     )}
                     
@@ -237,7 +237,7 @@ const Ask = () => {
                 {isLoading && (
                   <div className="flex gap-3 justify-start w-full">
                     <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground">
-                      A
+                      R
                     </div>
                     <div className="bg-secondary/50 p-5 rounded-2xl flex-1">
                       <div className="flex items-center gap-2">
