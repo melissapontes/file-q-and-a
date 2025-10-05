@@ -173,33 +173,33 @@ const Ask = () => {
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
-                        <Bot size={16} className="text-white" />
+                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground">
+                        A
                       </div>
                     )}
                     
                     <div
-                      className={`max-w-[80%] p-4 rounded-2xl ${
+                      className={`p-5 rounded-2xl ${
                         message.sender === 'user'
-                          ? 'bg-primary text-primary-foreground ml-12'
-                          : 'bg-secondary'
+                          ? 'bg-gradient-primary text-white max-w-[80%]'
+                          : 'bg-secondary/50 flex-1'
                       }`}
                     >
-                      <div className="text-sm leading-relaxed prose prose-sm max-w-none dark:prose-invert">
+                      <div className="text-base leading-relaxed prose prose-base max-w-none dark:prose-invert">
                         {message.sender === 'ai' ? (
                           <ReactMarkdown
                             components={{
-                              p: ({ children }) => <p className="mb-2 inline">{children}</p>,
-                              strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
+                              p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+                              strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
                               em: ({ children }) => <em className="italic">{children}</em>,
-                              ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal mb-2 space-y-1">{children}</ol>,
-                              li: ({ children }) => <li className="inline">{children}</li>,
-                              code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded text-xs">{children}</code>,
-                              pre: ({ children }) => <pre className="bg-muted p-2 rounded my-2 overflow-x-auto">{children}</pre>,
+                              ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-1">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal list-outside ml-5 mb-4 space-y-2">{children}</ol>,
+                              li: ({ children }) => <li className="mb-1">{children}</li>,
+                              code: ({ children }) => <code className="bg-muted px-1.5 py-0.5 rounded text-sm">{children}</code>,
+                              pre: ({ children }) => <pre className="bg-muted p-3 rounded my-3 overflow-x-auto">{children}</pre>,
                             }}
                           >
                             {message.content}
@@ -224,29 +224,25 @@ const Ask = () => {
                           </div>
                         </div>
                       )}
-
-                      <p className="text-xs opacity-70 mt-2">
-                        {message.timestamp.toLocaleTimeString()}
-                      </p>
                     </div>
 
                     {message.sender === 'user' && (
-                      <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
-                        <User size={16} />
+                      <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                        V
                       </div>
                     )}
                   </div>
                 ))}
 
                 {isLoading && (
-                  <div className="flex gap-3 justify-start">
-                    <div className="w-8 h-8 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
-                      <Bot size={16} className="text-white" />
+                  <div className="flex gap-3 justify-start w-full">
+                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground">
+                      A
                     </div>
-                    <div className="bg-secondary p-4 rounded-2xl">
+                    <div className="bg-secondary/50 p-5 rounded-2xl flex-1">
                       <div className="flex items-center gap-2">
                         <Loader2 size={16} className="animate-spin" />
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-base text-muted-foreground">
                           Pesquisando nos documentos...
                         </span>
                       </div>
