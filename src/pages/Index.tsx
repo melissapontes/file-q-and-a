@@ -10,10 +10,7 @@ const Index = () => {
       <section className="container mx-auto px-6 py-20 text-center">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-glass border-glass rounded-full backdrop-blur-xl mb-6">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm text-muted-foreground">Powered by OpenAI RAG</span>
-            </div>
+           
             
             <h1 className="text-6xl font-bold mb-6 bg-gradient-primary bg-clip-text text-transparent leading-tight">
               Transforme Seus Documentos
