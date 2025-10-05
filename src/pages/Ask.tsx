@@ -173,23 +173,23 @@ const Ask = () => {
                 {messages.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
+                    className={`flex gap-2 sm:gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
                         R
                       </div>
                     )}
                     
                     <div
-                      className={`p-5 rounded-2xl ${
+                      className={`p-3 sm:p-5 rounded-2xl break-words overflow-hidden ${
                         message.sender === 'user'
-                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[80%]'
-                          : 'bg-secondary/50 flex-1'
+                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[85%] sm:max-w-[80%]'
+                          : 'bg-secondary/50 flex-1 min-w-0'
                       }`}
                       style={message.sender === 'user' ? { color: '#555555' } : {}}
                     >
-                      <div className="text-base leading-relaxed prose prose-base max-w-none dark:prose-invert">
+                      <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">
                         {message.sender === 'ai' ? (
                           <ReactMarkdown
                             components={{
@@ -228,7 +228,7 @@ const Ask = () => {
                     </div>
 
                     {message.sender === 'user' && (
-                      <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-sm sm:text-base">
                         V
                       </div>
                     )}
@@ -236,14 +236,14 @@ const Ask = () => {
                 ))}
 
                 {isLoading && (
-                  <div className="flex gap-3 justify-start w-full">
-                    <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground">
+                  <div className="flex gap-2 sm:gap-3 justify-start w-full">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
                       R
                     </div>
-                    <div className="bg-secondary/50 p-5 rounded-2xl flex-1">
+                    <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <Loader2 size={16} className="animate-spin" />
-                        <span className="text-base text-muted-foreground">
+                        <Loader2 size={16} className="animate-spin flex-shrink-0" />
+                        <span className="text-sm sm:text-base text-muted-foreground">
                           Pesquisando nos documentos...
                         </span>
                       </div>
