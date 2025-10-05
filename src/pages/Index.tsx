@@ -19,7 +19,7 @@ const Index = () => {
             </h1>
             
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              Pergunte ao RAG Nefro & Uro e obtenha respostas precisas baseadas no conteúdo dos seus arquivos.
+              Transforme Seus Documentos em Conhecimento Inteligente.
             </p>
           </div>
 
