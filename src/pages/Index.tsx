@@ -13,9 +13,9 @@ const Index = () => {
            
             
             <h1 className="text-6xl font-bold mb-6 bg-gradient-primary bg-clip-text text-transparent leading-tight">
-              Transforme Seus Documentos
+              RAG
               <br />
-              em Conhecimento Inteligente
+              Nefro & URO
             </h1>
             
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
