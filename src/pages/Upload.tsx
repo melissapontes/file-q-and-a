@@ -140,7 +140,7 @@ const Upload = () => {
             Upload de Documentos
           </h1>
           <p className="text-muted-foreground text-lg">
-            Faça upload de arquivos PDF, TXT, MD ou DOCX para alimentar o sistema RAG
+            Faça upload dos seus arquivos para alimentar o RAG
           </p>
         </div>
 
@@ -238,13 +238,6 @@ const Upload = () => {
             )}
           </Button>
         </Card>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            <strong>Nota:</strong> Sistema conectado ao Supabase Storage + OpenAI Vector Store. 
-            Configure sua OPENAI_API_KEY e OPENAI_VECTOR_STORE_ID para funcionalidade completa.
-          </p>
-        </div>
       </div>
     </div>
   );
