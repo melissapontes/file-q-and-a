@@ -130,67 +130,6 @@ serve(async (req) => {
 
     console.log('Processing question:', question);
     console.log(`Using vector store: ${vectorStoreId}`);
-
-    // Detect if user is asking to list all documents
-    const isListingRequest = /\b(listar|lista|nomes|todos os|all|list)\b.*\b(artigos?|documentos?|arquivos?|papers?|files?)\b/i.test(question) ||
-                             /\b(artigos?|documentos?|arquivos?|papers?|files?)\b.*\b(listar|lista|nomes|todos os|all|list)\b/i.test(question);
-
-    if (isListingRequest) {
-      console.log('Detected listing request - returning all files from vector store');
-      
-      // Direct listing mode: return ALL files without using Assistant
-      const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
-      });
-
-      if (!filesResponse.ok) {
-        const error = await filesResponse.text();
-        console.error('Error listing files:', error);
-        throw new Error(`Erro ao listar arquivos: ${error}`);
-      }
-
-      const filesData = await filesResponse.json();
-      
-      if (!filesData.data || filesData.data.length === 0) {
-        return new Response(
-          JSON.stringify({ answer: 'Nenhum documento encontrado no vector store.' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Get file details (filename) for each file ID
-      const fileDetails = await Promise.all(
-        filesData.data.map(async (file: any) => {
-          try {
-            const detailResponse = await fetch(`https://api.openai.com/v1/files/${file.id}`, {
-              headers: {
-                'Authorization': `Bearer ${openaiApiKey}`,
-              },
-            });
-            if (detailResponse.ok) {
-              const detail = await detailResponse.json();
-              return `• ${detail.filename || file.id} (ID: ${file.id})`;
-            }
-            return `• ${file.id}`;
-          } catch (e) {
-            return `• ${file.id}`;
-          }
-        })
-      );
-
-      const answer = `📚 **Documentos disponíveis no vector store (${filesData.data.length} artigos):**\n\n${fileDetails.join('\n')}`;
-      console.log('Listed all files successfully');
-
-      return new Response(
-        JSON.stringify({ answer }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Normal RAG flow continues below (unchanged)
     // Step 0: List all files in the vector store
     console.log('Listing all files in vector store...');
     const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
@@ -227,22 +166,24 @@ serve(async (req) => {
 
 ${filesList}
 
-INSTRUÇÕES CRÍTICAS:
-1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos listados acima
-2. Realize uma busca ampla, cobrindo múltiplos documentos e trechos relevantes dos arquivos
-3. Para perguntas sobre listar documentos, procure por termos genéricos que estejam em todos os documentos (como "abstract", "introduction", "methods")
-4. SEMPRE cite o nome/ID exato do arquivo fonte na sua resposta
-5. Se a pergunta pedir para listar documentos, retorne TODOS os IDs de arquivo que você encontrou
-6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
+INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
+1. Você DEVE usar a ferramenta file_search para buscar nos documentos relevantes
+2. Quando o usuário pedir para listar documentos sobre um tópico específico (ex: "oxalato de cálcio"), você deve:
+   - Buscar APENAS documentos que contenham informações relevantes sobre esse tópico
+   - Retornar SOMENTE os documentos que realmente falam sobre o assunto solicitado
+   - NÃO retornar todos os documentos do vector store
+3. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações
+4. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
+5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
 - Deixe uma linha em branco entre cada tópico numerado
 - Coloque o texto logo após o número, na mesma linha (exemplo: "1. Texto do tópico")
 - Ao citar a fonte, coloque em negrito logo após a informação no mesmo parágrafo
-- Na seççao de documentos utuilizados para responder, informe o nome do arquivo, e nao este formato: file-Aifp6BUxhj2YTcMvftEYPU
+- Na seção de documentos utilizados, informe o nome completo do arquivo PDF
 
-Sua tarefa é consultar TODOS os arquivos disponíveis no vector store e sintetizar as informações encontradas.`,
+IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
         model: 'gpt-4o-mini',
         tools: [{ 
           type: 'file_search',
