@@ -176,14 +176,13 @@ const Documents = () => {
                         </Badge>
                       </div>
                       
-                      {doc.processing_status === 'error' && doc.error_message && (
-                        <div className="text-sm text-destructive mb-3 bg-destructive/10 p-2 rounded border border-destructive/20">
-                          <strong>Erro:</strong> {doc.error_message}
-                        </div>
-                      )}
-                      
                       <div className="text-sm text-foreground/70 mb-3 font-medium">
                         {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
+                        {doc.processing_status === 'error' && doc.error_message && (
+                          <span className="text-destructive ml-2">
+                            • Falha no processamento
+                          </span>
+                        )}
                       </div>
 
                       {editingDoc === doc.id ? (
