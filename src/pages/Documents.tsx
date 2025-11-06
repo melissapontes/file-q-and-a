@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { FileText, Tag, Trash2, Edit } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
@@ -171,9 +171,13 @@ const Documents = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <FileText size={18} className="text-primary" />
                         <h3 className="font-semibold text-foreground">{doc.original_name}</h3>
-                        <Badge className={doc.processing_status === 'error' ? 'bg-destructive text-destructive-foreground' : 'bg-tag text-tag-foreground'}>
-                          {doc.processing_status === 'completed' ? '✓ processado' : doc.processing_status === 'error' ? '✗ erro' : doc.processing_status}
-                        </Badge>
+                        {doc.processing_status === 'completed' ? (
+                          <CheckCircle2 size={20} className="text-tag" />
+                        ) : doc.processing_status === 'error' ? (
+                          <XCircle size={20} className="text-destructive" />
+                        ) : (
+                          <Badge variant="secondary">{doc.processing_status}</Badge>
+                        )}
                       </div>
                       
                       <div className="text-sm text-foreground/70 mb-3 font-medium">
