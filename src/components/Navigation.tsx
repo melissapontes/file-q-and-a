@@ -30,11 +30,24 @@ const Navigation = () => {
                     {navItems.map(({ path, label, icon: Icon }) => {
                       const isActive = location.pathname === path;
                       const isAskPage = path === "/ask";
+                      const isUploadPage = path === "/upload";
                       const isHomePage = location.pathname === "/";
                       
-                      // Quando estiver na Home, destacar Pergunte; caso contrário, destacar a página ativa
-                      const shouldHighlight = isHomePage ? isAskPage : isActive;
-                      const variant = shouldHighlight ? "default" : "ghost";
+                      // Upload e Pergunte sempre com destaque; na Home, Pergunte tem glow
+                      let variant: "default" | "ghost" = "ghost";
+                      let hasGlow = false;
+                      
+                      if (isUploadPage || isAskPage) {
+                        variant = "default";
+                        if (isHomePage && isAskPage) {
+                          hasGlow = true;
+                        } else if (isActive) {
+                          hasGlow = true;
+                        }
+                      } else if (isActive) {
+                        variant = "default";
+                        hasGlow = true;
+                      }
                       
                       return (
                         <Button
@@ -42,7 +55,7 @@ const Navigation = () => {
                           variant={variant}
                           size="sm"
                           asChild
-                          className={shouldHighlight ? "shadow-glow" : ""}
+                          className={hasGlow ? "shadow-glow" : ""}
                         >
                           <Link to={path} className="flex items-center gap-1 sm:gap-2">
                             <Icon size={16} />
