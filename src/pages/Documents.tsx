@@ -167,16 +167,16 @@ const Documents = () => {
                   className="p-4 bg-card rounded-lg border border-border shadow-sm"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText size={18} className="text-primary" />
-                        <h3 className="font-semibold text-foreground">{doc.original_name}</h3>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start gap-3 mb-2">
+                        <FileText size={24} className="text-primary flex-shrink-0 mt-0.5" />
+                        <h3 className="font-semibold text-foreground text-base flex-1 break-words">{doc.original_name}</h3>
                         {doc.processing_status === 'completed' ? (
-                          <CheckCircle2 size={20} className="text-tag" />
+                          <CheckCircle2 size={24} className="text-tag flex-shrink-0" />
                         ) : doc.processing_status === 'error' ? (
-                          <XCircle size={20} className="text-destructive" />
+                          <XCircle size={24} className="text-destructive flex-shrink-0" />
                         ) : (
-                          <Badge variant="secondary">{doc.processing_status}</Badge>
+                          <Badge variant="secondary" className="flex-shrink-0">{doc.processing_status}</Badge>
                         )}
                       </div>
                       
@@ -232,7 +232,7 @@ const Documents = () => {
                       )}
                     </div>
 
-                    <div className="flex gap-2 ml-4">
+                    <div className="flex gap-2 ml-4 flex-shrink-0">
                       <Button
                         size="sm"
                         variant="ghost"
@@ -241,16 +241,18 @@ const Documents = () => {
                           setEditTags(doc.tags?.join(', ') || '');
                         }}
                         disabled={editingDoc !== null}
+                        className="p-2"
                       >
-                        <Edit size={16} />
+                        <Edit size={20} />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDelete(doc.id)}
                         disabled={editingDoc !== null}
+                        className="p-2"
                       >
-                        <Trash2 size={16} className="text-destructive" />
+                        <Trash2 size={20} className="text-destructive" />
                       </Button>
                     </div>
                   </div>
