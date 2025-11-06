@@ -157,8 +157,8 @@ const Ask = () => {
   const hasOnlyWelcomeMessage = messages.length === 1;
 
   return (
-    <div className="min-h-screen bg-gradient-secondary p-2 sm:p-4 md:p-6">
-      <div className="container mx-auto max-w-4xl">
+    <div className="bg-gradient-secondary p-2 sm:p-4 md:p-6 h-full">
+      <div className="container mx-auto max-w-4xl h-full">
         <div className="text-center mb-3 sm:mb-6 pt-4 sm:pt-8">
           <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
             Pergunte ao RAG
