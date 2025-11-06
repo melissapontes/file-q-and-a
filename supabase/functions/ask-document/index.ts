@@ -140,12 +140,56 @@ serve(async (req) => {
     });
 
     let filesList = 'Arquivos disponíveis no vector store: (nenhum encontrado)';
+    // Files present in the vector store with their human filenames
+    const vectorFiles: { id: string; filename: string }[] = [];
+    // Files we want to prioritize for the current question (by heuristics)
+    let preferredFileIds: string[] = [];
+
     if (filesResponse.ok) {
       const filesData = await filesResponse.json();
       if (filesData.data && filesData.data.length > 0) {
-        const fileNames = filesData.data.map((f: any) => f.id).join(', ');
-        filesList = `Arquivos disponíveis no vector store (${filesData.data.length} arquivos): ${fileNames}`;
+        const fileIds: string[] = filesData.data.map((f: any) => f.id);
+
+        // Fetch filenames for each file id so we can apply simple heuristics
+        for (const id of fileIds) {
+          try {
+            const fr = await fetch(`https://api.openai.com/v1/files/${id}`, {
+              headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+            });
+            if (fr.ok) {
+              const fd = await fr.json();
+              vectorFiles.push({ id, filename: fd.filename || id });
+            } else {
+              vectorFiles.push({ id, filename: id });
+            }
+          } catch {
+            vectorFiles.push({ id, filename: id });
+          }
+        }
+
+        filesList = `Arquivos disponíveis no vector store (${vectorFiles.length} arquivos): ${vectorFiles.map(f => f.id).join(', ')}`;
         console.log(filesList);
+
+        // Heurística: se a pergunta falar sobre oxalato de cálcio ("oxalato", "oxalate", "CaOx"),
+        // priorizar arquivos cujo nome sugira esse tema, preferindo os caninos quando aplicável
+        const qLower = question.toLowerCase();
+        const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox'];
+        const canineTerms = ['canine', 'canino', 'cão', 'cao', 'cães', 'caes', 'dog', 'dogs'];
+        const hasOxalate = oxalateTerms.some(t => qLower.includes(t));
+        const isDogContext = canineTerms.some(t => qLower.includes(t));
+
+        if (hasOxalate) {
+          const candidates = vectorFiles.filter(vf => {
+            const name = vf.filename.toLowerCase();
+            const ox = oxalateTerms.some(t => name.includes(t));
+            const dog = canineTerms.some(t => name.includes(t));
+            return ox && (!isDogContext || dog);
+          });
+          preferredFileIds = candidates.map(c => c.id);
+          if (preferredFileIds.length > 0) {
+            console.log(`Prioritizing files for this question: ${preferredFileIds.join(', ')}`);
+          }
+        }
       }
     } else {
       console.error('Could not list files:', await filesResponse.text());
@@ -175,13 +219,14 @@ INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
 3. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações
 4. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
 5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
-6. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
+6. SE O TEMA FOR OXALATO DE CÁLCIO EM CÃES, priorize e cite o(s) documento(s) com nomes semelhantes a "canine_calcium_oxalate_uroliths" quando disponíveis.
+7. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
 - Deixe uma linha em branco entre cada tópico numerado
 - Coloque o texto logo após o número, na mesma linha (exemplo: "1. Texto do tópico")
-- Ao citar a fonte, coloque em negrito logo após a informação no mesmo parágrafo
+- Ao citar a fonte, coloque em negrido logo após a informação no mesmo parágrafo
 - Na seção de documentos utilizados, informe o nome completo do arquivo PDF
 
 IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
@@ -243,12 +288,24 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
       content: fullQuestion
     };
 
+    // Attach prioritized vector-store files first (to bias retrieval)
+    const allAttachments: any[] = [];
+    if (typeof preferredFileIds !== 'undefined' && preferredFileIds.length > 0) {
+      allAttachments.push(
+        ...preferredFileIds.map(fileId => ({ file_id: fileId, tools: [{ type: 'file_search' }] }))
+      );
+    }
+
+    // Then attach any ad-hoc files uploaded with the question
     if (uploadedFileIds.length > 0) {
-      messageBody.attachments = uploadedFileIds.map(fileId => ({
-        file_id: fileId,
-        tools: [{ type: 'file_search' }]
-      }));
-      console.log(`Attaching ${uploadedFileIds.length} document files to message`);
+      allAttachments.push(
+        ...uploadedFileIds.map(fileId => ({ file_id: fileId, tools: [{ type: 'file_search' }] }))
+      );
+    }
+
+    if (allAttachments.length > 0) {
+      messageBody.attachments = allAttachments;
+      console.log(`Attaching ${allAttachments.length} files to message (preferred: ${preferredFileIds?.length || 0}, uploaded: ${uploadedFileIds.length})`);
     }
 
     const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
@@ -386,9 +443,8 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
           }
         }
         
-        // Replace citation markers with inline references
+        // Replace citation markers with inline references and build reference list
         answer = rawAnswer.replace(/【\d+:\d+†source】/g, (match: string) => {
-          // Extract the annotation index from the match
           const annotationIndex = parseInt(match.match(/【(\d+):/)?.[1] || '0');
           if (annotations[annotationIndex]?.type === 'file_citation') {
             const fileId = annotations[annotationIndex].file_citation?.file_id;
@@ -397,7 +453,9 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
           }
           return '';
         });
-        
+
+        // Populate references array for frontend rendering
+        references = Array.from(citationMap.values());
         console.log(`Processed answer with ${citationMap.size} unique references`);
       }
     }
