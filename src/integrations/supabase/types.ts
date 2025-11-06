@@ -26,6 +26,7 @@ export type Database = {
           original_name: string
           processing_status: string | null
           storage_path: string
+          tags: string[] | null
           updated_at: string
           user_id: string
           vector_store_file_id: string | null
@@ -41,6 +42,7 @@ export type Database = {
           original_name: string
           processing_status?: string | null
           storage_path: string
+          tags?: string[] | null
           updated_at?: string
           user_id: string
           vector_store_file_id?: string | null
@@ -56,6 +58,7 @@ export type Database = {
           original_name?: string
           processing_status?: string | null
           storage_path?: string
+          tags?: string[] | null
           updated_at?: string
           user_id?: string
           vector_store_file_id?: string | null

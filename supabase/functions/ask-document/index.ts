@@ -18,6 +18,8 @@ serve(async (req) => {
     // Get environment variables
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!openaiApiKey || !vectorStoreId) {
       throw new Error('Missing required environment variables: OPENAI_API_KEY or OPENAI_VECTOR_STORE_ID');
@@ -130,6 +132,33 @@ serve(async (req) => {
 
     console.log('Processing question:', question);
     console.log(`Using vector store: ${vectorStoreId}`);
+
+    // Fetch documents with tags from Supabase
+    let documentsWithTags: { openai_file_id: string; tags: string[]; original_name: string }[] = [];
+    if (supabaseUrl && supabaseServiceKey) {
+      try {
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        
+        const { data, error } = await supabase
+          .from('documents')
+          .select('openai_file_id, tags, original_name')
+          .eq('processing_status', 'completed')
+          .not('openai_file_id', 'is', null);
+        
+        if (!error && data) {
+          documentsWithTags = data.map(doc => ({
+            openai_file_id: doc.openai_file_id!,
+            tags: doc.tags || [],
+            original_name: doc.original_name
+          }));
+          console.log(`Fetched ${documentsWithTags.length} documents with tags from Supabase`);
+        }
+      } catch (e) {
+        console.error('Error fetching documents from Supabase:', e);
+      }
+    }
+
     // Step 0: List all files in the vector store
     console.log('Listing all files in vector store...');
     const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
@@ -170,25 +199,65 @@ serve(async (req) => {
         filesList = `Arquivos disponíveis no vector store (${vectorFiles.length} arquivos): ${vectorFiles.map(f => f.id).join(', ')}`;
         console.log(filesList);
 
-        // Heurística: se a pergunta falar sobre oxalato de cálcio ("oxalato", "oxalate", "CaOx"),
-        // priorizar arquivos cujo nome sugira esse tema, preferindo os caninos quando aplicável
+        // Enhanced heuristic using tags and filename matching
         const qLower = question.toLowerCase();
-        const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox'];
-        const canineTerms = ['canine', 'canino', 'cão', 'cao', 'cães', 'caes', 'dog', 'dogs'];
-        const hasOxalate = oxalateTerms.some(t => qLower.includes(t));
-        const isDogContext = canineTerms.some(t => qLower.includes(t));
-
-        if (hasOxalate) {
-          const candidates = vectorFiles.filter(vf => {
-            const name = vf.filename.toLowerCase();
-            const ox = oxalateTerms.some(t => name.includes(t));
-            const dog = canineTerms.some(t => name.includes(t));
-            return ox && (!isDogContext || dog);
-          });
-          preferredFileIds = candidates.map(c => c.id);
-          if (preferredFileIds.length > 0) {
-            console.log(`Prioritizing files for this question: ${preferredFileIds.join(', ')}`);
+        
+        // Extract potential keywords from the question
+        const questionWords = qLower.split(/\s+/).filter(w => w.length > 3);
+        
+        // Score each document based on tag and filename relevance
+        const scoredFiles = vectorFiles.map(vf => {
+          let score = 0;
+          const nameLower = vf.filename.toLowerCase();
+          
+          // Find matching document in Supabase data
+          const docData = documentsWithTags.find(d => d.openai_file_id === vf.id);
+          
+          // Score based on tags
+          if (docData && docData.tags.length > 0) {
+            const tagMatches = docData.tags.filter(tag => 
+              questionWords.some(word => tag.toLowerCase().includes(word))
+            );
+            score += tagMatches.length * 10; // High weight for tag matches
           }
+          
+          // Score based on filename
+          const filenameMatches = questionWords.filter(word => nameLower.includes(word));
+          score += filenameMatches.length * 5; // Medium weight for filename matches
+          
+          // Special boost for known important terms
+          const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox'];
+          const canineTerms = ['canine', 'canino', 'cão', 'cao', 'cães', 'caes', 'dog', 'dogs'];
+          
+          const hasOxalate = oxalateTerms.some(t => qLower.includes(t));
+          const isDogContext = canineTerms.some(t => qLower.includes(t));
+          
+          if (hasOxalate) {
+            const nameHasOxalate = oxalateTerms.some(t => nameLower.includes(t));
+            const nameHasCanine = canineTerms.some(t => nameLower.includes(t));
+            const tagsHaveOxalate = docData?.tags.some(tag => 
+              oxalateTerms.some(t => tag.toLowerCase().includes(t))
+            );
+            
+            if (nameHasOxalate || tagsHaveOxalate) score += 20;
+            if (isDogContext && nameHasCanine) score += 15;
+          }
+          
+          return { id: vf.id, filename: vf.filename, score };
+        });
+        
+        // Sort by score and take top candidates
+        scoredFiles.sort((a, b) => b.score - a.score);
+        preferredFileIds = scoredFiles
+          .filter(sf => sf.score > 0)
+          .slice(0, 5) // Limit to top 5 most relevant
+          .map(sf => sf.id);
+        
+        if (preferredFileIds.length > 0) {
+          console.log(`Prioritizing ${preferredFileIds.length} files based on tags and relevance:`);
+          scoredFiles.filter(sf => sf.score > 0).slice(0, 5).forEach(sf => {
+            console.log(`  - ${sf.filename} (score: ${sf.score})`);
+          });
         }
       }
     } else {

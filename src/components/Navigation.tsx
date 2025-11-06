@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload, MessageCircle, Home, LogIn, LogOut, User } from "lucide-react";
+import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import logo from "@/assets/logo.png";
 
@@ -11,6 +11,7 @@ const Navigation = () => {
   const navItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/upload", label: "Upload", icon: Upload },
+    { path: "/documents", label: "Documentos", icon: FileText },
     { path: "/ask", label: "Pergunte", icon: MessageCircle },
   ];
 

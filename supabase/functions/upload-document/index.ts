@@ -63,12 +63,20 @@ serve(async (req) => {
     // Parse multipart form data
     const formData = await req.formData();
     const file = formData.get('file') as File;
+    const tagsString = formData.get('tags') as string | null;
 
     if (!file) {
       return new Response(
         JSON.stringify({ error: 'No file provided', success: false }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Parse tags from comma-separated string
+    let tags: string[] = [];
+    if (tagsString && tagsString.trim()) {
+      tags = tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      console.log('Tags received:', tags);
     }
 
     // Validate file type
@@ -118,7 +126,8 @@ serve(async (req) => {
         file_size: file.size,
         mime_type: file.type,
         storage_path: filePath,
-        processing_status: 'processing'
+        processing_status: 'processing',
+        tags: tags.length > 0 ? tags : []
       })
       .select()
       .single();

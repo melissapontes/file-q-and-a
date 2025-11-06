@@ -13,6 +13,7 @@ const Upload = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [tags, setTags] = useState<string>('');
   const { toast } = useToast();
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -75,6 +76,11 @@ const Upload = () => {
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
+        
+        // Add tags if provided
+        if (tags.trim()) {
+          formData.append('tags', tags.trim());
+        }
 
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -104,6 +110,7 @@ const Upload = () => {
       });
 
       setFiles([]);
+      setTags('');
     } catch (error) {
       console.error('Upload error:', error);
       toast({
@@ -169,7 +176,26 @@ const Upload = () => {
           </div>
 
           {files.length > 0 && (
-            <div className="mt-6">
+            <>
+              <div className="mt-6">
+                <label htmlFor="tags" className="block text-sm font-medium mb-2">
+                  Tags / Categorias (opcional)
+                </label>
+                <input
+                  id="tags"
+                  type="text"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  placeholder="Ex: oxalato de cálcio, nefrologia, canino (separados por vírgula)"
+                  className="w-full px-4 py-2 rounded-lg bg-secondary border border-glass focus:outline-none focus:ring-2 focus:ring-primary"
+                  disabled={uploading}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Adicione tags para facilitar a busca e categorização dos documentos
+                </p>
+              </div>
+
+              <div className="mt-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <FileText size={20} />
                 Arquivos Selecionados ({files.length})
@@ -201,6 +227,7 @@ const Upload = () => {
                 ))}
               </div>
             </div>
+            </>
           )}
 
           {uploading && (
