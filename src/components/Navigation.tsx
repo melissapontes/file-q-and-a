@@ -30,11 +30,25 @@ const Navigation = () => {
                     {navItems.map(({ path, label, icon: Icon }) => {
                       const isActive = location.pathname === path;
                       const isAskPage = path === "/ask";
+                      const isUploadPage = path === "/upload";
                       const isHomePage = location.pathname === "/";
                       
-                      // Apenas Pergunte fica destacado na Home; outros botões só quando ativos
-                      const shouldHighlight = (isHomePage && isAskPage) || (isActive && !isHomePage);
-                      const variant = shouldHighlight ? "default" : "ghost";
+                      // Pergunte fica destacado (verde/azul) na Home ou quando ativo
+                      // Upload e Home ficam ghost (preto) exceto quando ativos
+                      let variant: "default" | "ghost" = "ghost";
+                      let hasGlow = false;
+                      
+                      if (isAskPage) {
+                        // Pergunte sempre destacado na home, ou quando está ativo
+                        if (isHomePage || isActive) {
+                          variant = "default";
+                          hasGlow = true;
+                        }
+                      } else if (isActive) {
+                        // Outros botões só destacam quando ativos
+                        variant = "default";
+                        hasGlow = true;
+                      }
                       
                       return (
                         <Button
@@ -42,7 +56,7 @@ const Navigation = () => {
                           variant={variant}
                           size="sm"
                           asChild
-                          className={shouldHighlight ? "shadow-glow" : ""}
+                          className={hasGlow ? "shadow-glow" : ""}
                         >
                           <Link to={path} className="flex items-center gap-1 sm:gap-2">
                             <Icon size={16} />
