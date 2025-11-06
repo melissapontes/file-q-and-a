@@ -30,24 +30,11 @@ const Navigation = () => {
                     {navItems.map(({ path, label, icon: Icon }) => {
                       const isActive = location.pathname === path;
                       const isAskPage = path === "/ask";
-                      const isUploadPage = path === "/upload";
                       const isHomePage = location.pathname === "/";
                       
-                      // Upload e Pergunte sempre com destaque; na Home, Pergunte tem glow
-                      let variant: "default" | "ghost" = "ghost";
-                      let hasGlow = false;
-                      
-                      if (isUploadPage || isAskPage) {
-                        variant = "default";
-                        if (isHomePage && isAskPage) {
-                          hasGlow = true;
-                        } else if (isActive) {
-                          hasGlow = true;
-                        }
-                      } else if (isActive) {
-                        variant = "default";
-                        hasGlow = true;
-                      }
+                      // Apenas Pergunte fica destacado na Home; outros botões só quando ativos
+                      const shouldHighlight = (isHomePage && isAskPage) || (isActive && !isHomePage);
+                      const variant = shouldHighlight ? "default" : "ghost";
                       
                       return (
                         <Button
@@ -55,7 +42,7 @@ const Navigation = () => {
                           variant={variant}
                           size="sm"
                           asChild
-                          className={hasGlow ? "shadow-glow" : ""}
+                          className={shouldHighlight ? "shadow-glow" : ""}
                         >
                           <Link to={path} className="flex items-center gap-1 sm:gap-2">
                             <Icon size={16} />
