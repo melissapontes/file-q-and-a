@@ -170,7 +170,7 @@ const Documents = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <FileText size={18} className="text-primary" />
                         <h3 className="font-semibold text-foreground">{doc.original_name}</h3>
-                        <Badge variant={doc.processing_status === 'completed' ? 'default' : 'secondary'}>
+                        <Badge className="bg-tag text-tag-foreground">
                           {doc.processing_status}
                         </Badge>
                       </div>
@@ -210,7 +210,7 @@ const Documents = () => {
                         <div className="flex flex-wrap gap-2">
                           {doc.tags && doc.tags.length > 0 ? (
                             doc.tags.map((tag, index) => (
-                              <Badge key={index} variant="secondary" className="gap-1 bg-primary/10 text-primary border-primary/20">
+                              <Badge key={index} variant="secondary" className="gap-1 bg-tag text-tag-foreground border-tag/20">
                                 <Tag size={12} />
                                 {tag}
                               </Badge>

@@ -51,6 +51,10 @@ All colors MUST be HSL.
     --shadow-glow: 0 0 40px hsl(174 74% 56% / 0.3);
     --shadow-soft: 0 8px 32px hsl(240 10% 3.9% / 0.4);
 
+    /* Custom tag color */
+    --tag: 183 100% 34%;
+    --tag-foreground: 0 0% 100%;
+
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 98%;
