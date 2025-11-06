@@ -163,19 +163,19 @@ const Documents = () => {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="p-4 bg-secondary rounded-lg border border-glass"
+                  className="p-4 bg-card rounded-lg border border-border shadow-sm"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <FileText size={18} className="text-primary" />
-                        <h3 className="font-semibold">{doc.original_name}</h3>
+                        <h3 className="font-semibold text-foreground">{doc.original_name}</h3>
                         <Badge variant={doc.processing_status === 'completed' ? 'default' : 'secondary'}>
                           {doc.processing_status}
                         </Badge>
                       </div>
                       
-                      <div className="text-sm text-muted-foreground mb-3">
+                      <div className="text-sm text-foreground/70 mb-3 font-medium">
                         {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
                       </div>
 
@@ -186,7 +186,7 @@ const Documents = () => {
                             value={editTags}
                             onChange={(e) => setEditTags(e.target.value)}
                             placeholder="Tags separadas por vírgula"
-                            className="flex-1 px-3 py-1.5 text-sm rounded bg-background border border-glass focus:outline-none focus:ring-2 focus:ring-primary"
+                            className="flex-1 px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
                             autoFocus
                           />
                           <Button
@@ -210,13 +210,13 @@ const Documents = () => {
                         <div className="flex flex-wrap gap-2">
                           {doc.tags && doc.tags.length > 0 ? (
                             doc.tags.map((tag, index) => (
-                              <Badge key={index} variant="outline" className="gap-1">
+                              <Badge key={index} variant="secondary" className="gap-1 bg-primary/10 text-primary border-primary/20">
                                 <Tag size={12} />
                                 {tag}
                               </Badge>
                             ))
                           ) : (
-                            <span className="text-sm text-muted-foreground">Sem tags</span>
+                            <span className="text-sm text-foreground/60 font-medium bg-muted px-2 py-1 rounded">Sem tags</span>
                           )}
                         </div>
                       )}
