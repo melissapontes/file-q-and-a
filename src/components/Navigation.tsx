@@ -19,7 +19,7 @@ const Navigation = () => {
       <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex items-center justify-between gap-2">
           <Link to="/" className="flex items-center">
-            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain" />
+            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain mix-blend-multiply dark:mix-blend-screen" />
           </Link>
           
           <div className="flex items-center gap-1 sm:gap-2">
