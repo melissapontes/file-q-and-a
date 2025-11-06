@@ -11,7 +11,7 @@ const Navigation = () => {
   const navItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/upload", label: "Upload", icon: Upload },
-    { path: "/ask", label: "Ask", icon: MessageCircle },
+    { path: "/ask", label: "Pergunte", icon: MessageCircle },
   ];
 
   return (
@@ -27,20 +27,28 @@ const Navigation = () => {
               <>
                 {user ? (
                   <>
-                    {navItems.map(({ path, label, icon: Icon }) => (
-                      <Button
-                        key={path}
-                        variant={location.pathname === path ? "default" : "ghost"}
-                        size="sm"
-                        asChild
-                        className={location.pathname === path ? "shadow-glow" : ""}
-                      >
-                        <Link to={path} className="flex items-center gap-1 sm:gap-2">
-                          <Icon size={16} />
-                          <span className="hidden sm:inline">{label}</span>
-                        </Link>
-                      </Button>
-                    ))}
+                    {navItems.map(({ path, label, icon: Icon }) => {
+                      const isActive = location.pathname === path;
+                      const isAskPage = path === "/ask";
+                      // Pergunte tem foco por padrão, a menos que outra página esteja ativa
+                      const shouldHighlight = isActive || (isAskPage && !navItems.some(item => item.path === location.pathname && item.path !== "/ask"));
+                      const variant = shouldHighlight ? "default" : "ghost";
+                      
+                      return (
+                        <Button
+                          key={path}
+                          variant={variant}
+                          size="sm"
+                          asChild
+                          className={shouldHighlight ? "shadow-glow" : ""}
+                        >
+                          <Link to={path} className="flex items-center gap-1 sm:gap-2">
+                            <Icon size={16} />
+                            <span className="hidden sm:inline">{label}</span>
+                          </Link>
+                        </Button>
+                      );
+                    })}
                     <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-glass">
                       <span className="text-xs sm:text-sm text-muted-foreground hidden md:flex items-center gap-1">
                         <User size={14} />
