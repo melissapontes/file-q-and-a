@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Upload, MessageCircle, Home, LogIn, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import logo from "@/assets/logo.jpg";
 
 const Navigation = () => {
   const location = useLocation();
@@ -17,8 +18,8 @@ const Navigation = () => {
     <nav className="bg-glass border-b border-glass backdrop-blur-xl">
       <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex items-center justify-between gap-2">
-          <Link to="/" className="text-lg sm:text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent whitespace-nowrap">
-            RAG AI
+          <Link to="/" className="flex items-center">
+            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain" />
           </Link>
           
           <div className="flex items-center gap-1 sm:gap-2">
