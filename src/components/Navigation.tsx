@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Upload, MessageCircle, Home, LogIn, LogOut, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import logo from "@/assets/logo.jpg";
+import logo from "@/assets/logo.png";
 
 const Navigation = () => {
   const location = useLocation();
@@ -19,7 +19,7 @@ const Navigation = () => {
       <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex items-center justify-between gap-2">
           <Link to="/" className="flex items-center">
-            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain mix-blend-multiply dark:mix-blend-screen" />
+            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain" />
           </Link>
           
           <div className="flex items-center gap-1 sm:gap-2">
