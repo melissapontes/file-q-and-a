@@ -30,8 +30,10 @@ const Navigation = () => {
                     {navItems.map(({ path, label, icon: Icon }) => {
                       const isActive = location.pathname === path;
                       const isAskPage = path === "/ask";
-                      // Pergunte tem foco por padrão, a menos que outra página esteja ativa
-                      const shouldHighlight = isActive || (isAskPage && !navItems.some(item => item.path === location.pathname && item.path !== "/ask"));
+                      const isHomePage = location.pathname === "/";
+                      
+                      // Quando estiver na Home, destacar Pergunte; caso contrário, destacar a página ativa
+                      const shouldHighlight = isHomePage ? isAskPage : isActive;
                       const variant = shouldHighlight ? "default" : "ghost";
                       
                       return (
