@@ -15,6 +15,7 @@ interface Document {
   created_at: string;
   file_size: number;
   processing_status: string;
+  error_message: string | null;
 }
 
 const Documents = () => {
@@ -42,7 +43,7 @@ const Documents = () => {
     try {
       const { data, error } = await supabase
         .from('documents')
-        .select('id, original_name, tags, created_at, file_size, processing_status')
+        .select('id, original_name, tags, created_at, file_size, processing_status, error_message')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -170,10 +171,16 @@ const Documents = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <FileText size={18} className="text-primary" />
                         <h3 className="font-semibold text-foreground">{doc.original_name}</h3>
-                        <Badge className="bg-tag text-tag-foreground">
-                          {doc.processing_status}
+                        <Badge className={doc.processing_status === 'error' ? 'bg-destructive text-destructive-foreground' : 'bg-tag text-tag-foreground'}>
+                          {doc.processing_status === 'completed' ? '✓ processado' : doc.processing_status === 'error' ? '✗ erro' : doc.processing_status}
                         </Badge>
                       </div>
+                      
+                      {doc.processing_status === 'error' && doc.error_message && (
+                        <div className="text-sm text-destructive mb-3 bg-destructive/10 p-2 rounded border border-destructive/20">
+                          <strong>Erro:</strong> {doc.error_message}
+                        </div>
+                      )}
                       
                       <div className="text-sm text-foreground/70 mb-3 font-medium">
                         {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
