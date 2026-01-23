@@ -154,11 +154,10 @@ const Ask = () => {
     }
   };
 
-  const hasOnlyWelcomeMessage = messages.length === 1;
 
   return (
-    <div className="bg-gradient-secondary p-2 sm:p-4 md:p-6 h-full">
-      <div className="container mx-auto max-w-4xl h-full">
+    <div className="bg-gradient-secondary p-2 sm:p-4 md:p-6 pb-8">
+      <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-3 sm:mb-6 pt-4 sm:pt-8">
           <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
             Pergunte ao RAG
@@ -168,9 +167,9 @@ const Ask = () => {
           </p>
         </div>
 
-        <div className={`flex flex-col ${hasOnlyWelcomeMessage ? 'gap-4 sm:gap-6' : 'h-[calc(100vh-16rem)] sm:h-[calc(100vh-20rem)]'}`}>
-          <Card className={`p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft ${hasOnlyWelcomeMessage ? '' : 'flex-1 mb-2 sm:mb-4'}`}>
-            <ScrollArea className={hasOnlyWelcomeMessage ? 'h-auto max-h-[60vh] pr-2 sm:pr-4' : 'h-full pr-2 sm:pr-4'}>
+        <div className="flex flex-col gap-4 sm:gap-6">
+          <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
+            <ScrollArea className="max-h-[50vh] sm:max-h-[55vh] pr-2 sm:pr-4">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
