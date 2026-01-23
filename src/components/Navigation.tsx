@@ -1,12 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText } from "lucide-react";
+import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "next-themes";
 import logo from "@/assets/logo.png";
 
 const Navigation = () => {
   const location = useLocation();
   const { user, loading, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   const navItems = [
     { path: "/", label: "Home", icon: Home },
@@ -60,6 +62,16 @@ const Navigation = () => {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                        className="relative"
+                        aria-label="Alternar tema"
+                      >
+                        <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={signOut}
                         className="flex items-center gap-1 sm:gap-2"
                       >
@@ -69,17 +81,29 @@ const Navigation = () => {
                     </div>
                   </>
                 ) : (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    asChild
-                    className="shadow-glow"
-                  >
-                    <Link to="/auth" className="flex items-center gap-1 sm:gap-2">
-                      <LogIn size={16} />
-                      <span className="hidden sm:inline">Entrar</span>
-                    </Link>
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                      className="relative"
+                      aria-label="Alternar tema"
+                    >
+                      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      asChild
+                      className="shadow-glow"
+                    >
+                      <Link to="/auth" className="flex items-center gap-1 sm:gap-2">
+                        <LogIn size={16} />
+                        <span className="hidden sm:inline">Entrar</span>
+                      </Link>
+                    </Button>
+                  </>
                 )}
               </>
             )}
