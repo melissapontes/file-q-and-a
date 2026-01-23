@@ -5,9 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText } from "lucide-react";
+import { Send, MessageCircle, Loader2, Paperclip, X, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-
+import oracleAvatar from "@/assets/oracle-avatar.png";
 interface Message {
   id: string;
   content: string;
@@ -177,8 +177,12 @@ const Ask = () => {
                     className={`flex gap-2 sm:gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
-                        R
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        <img 
+                          src={oracleAvatar} 
+                          alt="Oráculo AI" 
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                     )}
                     
@@ -238,8 +242,12 @@ const Ask = () => {
 
                 {isLoading && (
                   <div className="flex gap-2 sm:gap-3 justify-start w-full">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
-                      R
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      <img 
+                        src={oracleAvatar} 
+                        alt="Oráculo AI" 
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
                       <div className="flex items-center gap-2">
