@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Pencil, Check, X } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Pencil, Check, X, Filter, XCircle as ClearIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
@@ -54,8 +54,31 @@ const Documents = () => {
   const [editTags, setEditTags] = useState<string>('');
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState<string>('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // Extrai todas as tags únicas dos documentos
+  const allTags = Array.from(
+    new Set(documents.flatMap(doc => doc.tags || []))
+  ).sort();
+
+  // Filtra documentos com base nas tags selecionadas
+  const filteredDocuments = selectedTags.length === 0
+    ? documents
+    : documents.filter(doc => 
+        selectedTags.some(tag => doc.tags?.includes(tag))
+      );
+
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
+  const clearFilters = () => setSelectedTags([]);
 
   useEffect(() => {
     fetchDocuments();
@@ -198,22 +221,81 @@ const Documents = () => {
           </p>
         </div>
 
+        {/* Filtro por Tags */}
+        {allTags.length > 0 && (
+          <Card className="p-4 mb-4 bg-glass border-glass backdrop-blur-xl shadow-soft">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter size={18} className="text-primary" />
+              <span className="font-medium text-foreground">Filtrar por tags:</span>
+              {selectedTags.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="ml-auto text-xs h-7 px-2"
+                >
+                  <ClearIcon size={14} className="mr-1" />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {allTags.map((tag) => {
+                const color = getTagColor(tag);
+                const isSelected = selectedTags.includes(tag);
+                return (
+                  <Badge
+                    key={tag}
+                    onClick={() => toggleTagFilter(tag)}
+                    className={`cursor-pointer gap-1 border-0 transition-all ${
+                      isSelected 
+                        ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-105' 
+                        : 'opacity-60 hover:opacity-100'
+                    }`}
+                    style={{
+                      backgroundColor: color.bg,
+                      color: color.text,
+                    }}
+                  >
+                    <Tag size={12} />
+                    {tag}
+                  </Badge>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
         <Card className="p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
-          {documents.length === 0 ? (
+          {filteredDocuments.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="mx-auto mb-4 w-16 h-16 text-muted-foreground opacity-50" />
-              <p className="text-muted-foreground">Nenhum documento encontrado</p>
-              <Button 
-                onClick={() => navigate('/upload')} 
-                className="mt-4"
-                variant="outline"
-              >
-                Fazer Upload
-              </Button>
+              <p className="text-muted-foreground">
+                {documents.length === 0 
+                  ? "Nenhum documento encontrado" 
+                  : "Nenhum documento corresponde aos filtros selecionados"}
+              </p>
+              {documents.length === 0 ? (
+                <Button 
+                  onClick={() => navigate('/upload')} 
+                  className="mt-4"
+                  variant="outline"
+                >
+                  Fazer Upload
+                </Button>
+              ) : (
+                <Button 
+                  onClick={clearFilters} 
+                  className="mt-4"
+                  variant="outline"
+                >
+                  Limpar Filtros
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
-              {documents.map((doc) => (
+              {filteredDocuments.map((doc) => (
                 <div
                   key={doc.id}
                   className="p-4 bg-card rounded-lg border border-border shadow-sm"
