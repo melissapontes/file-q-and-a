@@ -17,27 +17,34 @@ interface Document {
   error_message: string | null;
 }
 
-// Gera cor HSL consistente baseada no hash da string - cada tag terá cor única
+// Cores predefinidas bem distintas para garantir contraste visual
+const DISTINCT_COLORS = [
+  { bg: "hsl(0, 75%, 45%)", text: "hsl(0, 0%, 100%)" },      // vermelho
+  { bg: "hsl(210, 80%, 45%)", text: "hsl(0, 0%, 100%)" },    // azul
+  { bg: "hsl(130, 60%, 38%)", text: "hsl(0, 0%, 100%)" },    // verde
+  { bg: "hsl(280, 65%, 50%)", text: "hsl(0, 0%, 100%)" },    // roxo
+  { bg: "hsl(35, 85%, 50%)", text: "hsl(0, 0%, 100%)" },     // laranja
+  { bg: "hsl(180, 70%, 35%)", text: "hsl(0, 0%, 100%)" },    // teal/ciano
+  { bg: "hsl(330, 70%, 50%)", text: "hsl(0, 0%, 100%)" },    // rosa
+  { bg: "hsl(55, 80%, 42%)", text: "hsl(0, 0%, 100%)" },     // amarelo escuro
+  { bg: "hsl(260, 55%, 55%)", text: "hsl(0, 0%, 100%)" },    // violeta
+  { bg: "hsl(15, 80%, 50%)", text: "hsl(0, 0%, 100%)" },     // coral
+  { bg: "hsl(195, 75%, 40%)", text: "hsl(0, 0%, 100%)" },    // azul claro
+  { bg: "hsl(160, 65%, 38%)", text: "hsl(0, 0%, 100%)" },    // verde água
+];
+
+// Hash mais robusto usando caracteres e posição para melhor distribuição
 const getTagColor = (tag: string): { bg: string; text: string } => {
-  // Hash mais robusto usando FNV-1a para melhor distribuição
-  let hash = 2166136261;
-  for (let i = 0; i < tag.length; i++) {
-    hash ^= tag.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
+  const normalized = tag.toLowerCase().trim();
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i++) {
+    // Multiplicadores primos diferentes para cada posição
+    hash = (hash * 31 + normalized.charCodeAt(i) * (i + 1)) >>> 0;
   }
-  hash = Math.abs(hash);
+  // Adiciona comprimento como fator extra de diferenciação
+  hash = (hash * 17 + normalized.length * 53) >>> 0;
   
-  // Gera hue entre 0-360, evitando cores muito próximas
-  const hue = hash % 360;
-  // Saturation entre 55-75% para cores vibrantes
-  const saturation = 55 + (hash % 20);
-  // Lightness entre 40-50% para bom contraste com texto branco
-  const lightness = 40 + ((hash >> 8) % 10);
-  
-  return {
-    bg: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
-    text: "hsl(0, 0%, 100%)"
-  };
+  return DISTINCT_COLORS[hash % DISTINCT_COLORS.length];
 };
 
 const Documents = () => {
