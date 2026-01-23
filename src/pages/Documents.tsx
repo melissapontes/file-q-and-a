@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Pencil, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
@@ -17,11 +17,36 @@ interface Document {
   error_message: string | null;
 }
 
+// Cores HSL consistentes para tags - hash-based para mesma tag = mesma cor sempre
+const TAG_COLORS = [
+  { bg: "hsl(180, 70%, 35%)", text: "hsl(0, 0%, 100%)" },    // teal
+  { bg: "hsl(280, 60%, 45%)", text: "hsl(0, 0%, 100%)" },    // purple
+  { bg: "hsl(340, 70%, 50%)", text: "hsl(0, 0%, 100%)" },    // pink
+  { bg: "hsl(200, 70%, 45%)", text: "hsl(0, 0%, 100%)" },    // blue
+  { bg: "hsl(30, 80%, 50%)", text: "hsl(0, 0%, 100%)" },     // orange
+  { bg: "hsl(150, 60%, 40%)", text: "hsl(0, 0%, 100%)" },    // green
+  { bg: "hsl(260, 50%, 55%)", text: "hsl(0, 0%, 100%)" },    // violet
+  { bg: "hsl(10, 70%, 55%)", text: "hsl(0, 0%, 100%)" },     // red-orange
+];
+
+// Gera um índice consistente baseado no hash da string
+const getTagColorIndex = (tag: string): number => {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) {
+    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash) % TAG_COLORS.length;
+};
+
+const getTagColor = (tag: string) => TAG_COLORS[getTagColorIndex(tag)];
+
 const Documents = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingDoc, setEditingDoc] = useState<string | null>(null);
   const [editTags, setEditTags] = useState<string>('');
+  const [editingTitle, setEditingTitle] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState<string>('');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -31,7 +56,6 @@ const Documents = () => {
 
   const fetchDocuments = async () => {
     try {
-      // Use edge function to fetch documents (bypasses RLS)
       const response = await supabase.functions.invoke('list-documents');
       
       if (response.error) throw response.error;
@@ -46,6 +70,42 @@ const Documents = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateTitle = async (docId: string) => {
+    if (!editTitle.trim()) {
+      toast({
+        title: "Erro",
+        description: "O título não pode estar vazio.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .update({ original_name: editTitle.trim() })
+        .eq('id', docId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Título atualizado!",
+        description: "O título foi atualizado com sucesso.",
+      });
+
+      setEditingTitle(null);
+      setEditTitle('');
+      fetchDocuments();
+    } catch (error) {
+      console.error('Error updating title:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o título.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -106,6 +166,8 @@ const Documents = () => {
     }
   };
 
+  const isEditing = editingDoc !== null || editingTitle !== null;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-secondary flex items-center justify-center">
@@ -153,7 +215,61 @@ const Documents = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-3 mb-2">
                         <FileText size={24} className="text-primary flex-shrink-0 mt-0.5" />
-                        <h3 className="font-semibold text-foreground text-base flex-1 break-words">{doc.original_name}</h3>
+                        
+                        {editingTitle === doc.id ? (
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              className="flex-1 px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleUpdateTitle(doc.id);
+                                if (e.key === 'Escape') {
+                                  setEditingTitle(null);
+                                  setEditTitle('');
+                                }
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleUpdateTitle(doc.id)}
+                              className="p-1.5 h-auto"
+                            >
+                              <Check size={16} className="text-primary" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingTitle(null);
+                                setEditTitle('');
+                              }}
+                              className="p-1.5 h-auto"
+                            >
+                              <X size={16} className="text-muted-foreground" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <h3 className="font-semibold text-foreground text-base break-words">{doc.original_name}</h3>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingTitle(doc.id);
+                                setEditTitle(doc.original_name);
+                              }}
+                              disabled={isEditing}
+                              className="p-1 h-auto opacity-50 hover:opacity-100"
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                          </div>
+                        )}
+                        
                         {doc.processing_status === 'completed' ? (
                           <CheckCircle2 size={24} className="text-tag flex-shrink-0" />
                         ) : doc.processing_status === 'error' ? (
@@ -202,12 +318,22 @@ const Documents = () => {
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {doc.tags && doc.tags.length > 0 ? (
-                            doc.tags.map((tag, index) => (
-                              <Badge key={index} variant="secondary" className="gap-1 bg-tag text-tag-foreground border-tag/20">
-                                <Tag size={12} />
-                                {tag}
-                              </Badge>
-                            ))
+                            doc.tags.map((tag, index) => {
+                              const color = getTagColor(tag);
+                              return (
+                                <Badge 
+                                  key={index} 
+                                  className="gap-1 border-0"
+                                  style={{ 
+                                    backgroundColor: color.bg, 
+                                    color: color.text 
+                                  }}
+                                >
+                                  <Tag size={12} />
+                                  {tag}
+                                </Badge>
+                              );
+                            })
                           ) : (
                             <span className="text-sm text-foreground/60 font-medium bg-muted px-2 py-1 rounded">Sem tags</span>
                           )}
@@ -223,7 +349,7 @@ const Documents = () => {
                           setEditingDoc(doc.id);
                           setEditTags(doc.tags?.join(', ') || '');
                         }}
-                        disabled={editingDoc !== null}
+                        disabled={isEditing}
                         className="p-2"
                       >
                         <Edit size={20} />
@@ -232,7 +358,7 @@ const Documents = () => {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDelete(doc.id)}
-                        disabled={editingDoc !== null}
+                        disabled={isEditing}
                         className="p-2"
                       >
                         <Trash2 size={20} className="text-destructive" />
