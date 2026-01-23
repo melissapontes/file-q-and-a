@@ -34,7 +34,9 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Try to get user from auth header (optional - allows anonymous uploads)
-    let userId = 'anonymous';
+    // Fixed UUID for anonymous users
+    const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000';
+    let userId = ANONYMOUS_USER_ID;
     const authHeader = req.headers.get('Authorization');
     
     if (authHeader && authHeader !== `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`) {
