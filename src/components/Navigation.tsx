@@ -1,13 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText, Moon, Sun } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { Upload, MessageCircle, Home, FileText, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import logo from "@/assets/logo.png";
 
 const Navigation = () => {
   const location = useLocation();
-  const { user, loading, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
 
   const navItems = [
@@ -61,23 +59,6 @@ const Navigation = () => {
                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               </Button>
-              {!loading && user && (
-                <>
-                  <span className="text-xs sm:text-sm text-muted-foreground hidden md:flex items-center gap-1">
-                    <User size={14} />
-                    {user.email}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={signOut}
-                    className="flex items-center gap-1 sm:gap-2"
-                  >
-                    <LogOut size={16} />
-                    <span className="hidden sm:inline">Sair</span>
-                  </Button>
-                </>
-              )}
             </div>
           </div>
         </div>
