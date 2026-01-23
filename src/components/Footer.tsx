@@ -8,7 +8,7 @@ const Footer = () => {
         <p className="text-muted-foreground text-sm mt-1">
           Desenvolvido por{" "}
           <a
-            href="https://www.instagram.com/mpdigital.ai/"
+            href="https://www.instagram.com/mpdigital.tech/"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium hover:text-primary transition-colors inline-flex items-center gap-1"
