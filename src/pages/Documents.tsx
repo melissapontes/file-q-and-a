@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Pencil, Check, X, Filter, XCircle as ClearIcon } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Pencil, Check, X, Filter, XCircle as ClearIcon, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
@@ -55,6 +55,8 @@ const Documents = () => {
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [reuploadingDocId, setReuploadingDocId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -196,6 +198,75 @@ const Documents = () => {
     }
   };
 
+  const handleReupload = (docId: string) => {
+    setReuploadingDocId(docId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !reuploadingDocId) {
+      setReuploadingDocId(null);
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ['.pdf', '.txt', '.md', '.docx'];
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!validTypes.includes(extension)) {
+      toast({
+        title: "Arquivo inválido",
+        description: "Apenas arquivos .pdf, .txt, .md e .docx são permitidos.",
+        variant: "destructive",
+      });
+      setReuploadingDocId(null);
+      e.target.value = '';
+      return;
+    }
+
+    const docToReplace = documents.find(d => d.id === reuploadingDocId);
+    const existingTags = docToReplace?.tags?.join(', ') || '';
+
+    try {
+      // First delete the old document
+      await supabase.functions.invoke('delete-document', {
+        body: { documentId: reuploadingDocId },
+      });
+
+      // Then upload the new file
+      const formData = new FormData();
+      formData.append('file', file);
+      if (existingTags) {
+        formData.append('tags', existingTags);
+      }
+
+      const response = await supabase.functions.invoke('upload-document', {
+        body: formData,
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Erro no upload');
+      }
+
+      toast({
+        title: "Re-upload concluído!",
+        description: "O arquivo foi substituído com sucesso.",
+      });
+
+      fetchDocuments();
+    } catch (error) {
+      console.error('Reupload error:', error);
+      toast({
+        title: "Erro no re-upload",
+        description: error instanceof Error ? error.message : "Ocorreu um erro durante o re-upload.",
+        variant: "destructive",
+      });
+    } finally {
+      setReuploadingDocId(null);
+      e.target.value = '';
+    }
+  };
+
   const isEditing = editingDoc !== null || editingTitle !== null;
 
   if (loading) {
@@ -211,6 +282,14 @@ const Documents = () => {
 
   return (
     <div className="min-h-screen bg-gradient-secondary p-6">
+      {/* Hidden file input for re-upload */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".pdf,.txt,.md,.docx"
+        className="hidden"
+      />
       <div className="container mx-auto max-w-4xl">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
@@ -431,6 +510,22 @@ const Documents = () => {
                     </div>
 
                     <div className="flex gap-2 ml-4 flex-shrink-0">
+                      {doc.processing_status === 'error' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleReupload(doc.id)}
+                          disabled={isEditing || reuploadingDocId === doc.id}
+                          className="p-2"
+                          title="Tentar novamente com outro arquivo"
+                        >
+                          {reuploadingDocId === doc.id ? (
+                            <RefreshCw size={20} className="text-primary animate-spin" />
+                          ) : (
+                            <RefreshCw size={20} className="text-primary" />
+                          )}
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
