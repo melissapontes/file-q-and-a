@@ -6,6 +6,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to format reference titles as "Título (Ano)"
+function formatReferenceTitle(filename: string): string {
+  // Remove file extension
+  let name = filename.replace(/\.(pdf|txt|md|docx)$/i, '');
+  
+  // Try to extract year from various patterns
+  const yearPatterns = [
+    /(\d{4})/,                    // Simple 4 digit year
+    /[-_\s](\d{4})[-_\s]/,        // Year surrounded by separators
+    /\((\d{4})\)/,                // Year in parentheses
+  ];
+  
+  let year = '';
+  for (const pattern of yearPatterns) {
+    const match = name.match(pattern);
+    if (match && parseInt(match[1]) >= 1990 && parseInt(match[1]) <= 2030) {
+      year = match[1];
+      break;
+    }
+  }
+  
+  // Clean up the title
+  // Remove common prefixes/suffixes and clean separators
+  name = name
+    .replace(/[-_]/g, ' ')           // Replace dashes and underscores with spaces
+    .replace(/\s+/g, ' ')            // Normalize multiple spaces
+    .trim();
+  
+  // If we found a year, format as "Title (Year)"
+  if (year) {
+    // Remove the year from the title if it's there
+    name = name.replace(new RegExp(`\\s*${year}\\s*`, 'g'), ' ').trim();
+    return `${name} (${year})`;
+  }
+  
+  return name;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -521,19 +559,27 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
           }
         }
         
-        // Replace citation markers with inline references and build reference list
-        answer = rawAnswer.replace(/【\d+:\d+†source】/g, (match: string) => {
-          const annotationIndex = parseInt(match.match(/【(\d+):/)?.[1] || '0');
-          if (annotations[annotationIndex]?.type === 'file_citation') {
-            const fileId = annotations[annotationIndex].file_citation?.file_id;
-            const filename = citationMap.get(fileId) || fileId;
-            return ` **[${filename}]**`;
+        // Replace ALL citation markers (format: 【number:number†anything】) with clean inline references
+        // The actual format can be 【4:2†source】 or 【4:2†filename.pdf】
+        answer = rawAnswer.replace(/【\d+:\d+†[^】]*】/g, (match: string) => {
+          // Try to find the corresponding annotation
+          const indexMatch = match.match(/【(\d+):/);
+          if (indexMatch) {
+            const annotationIndex = parseInt(indexMatch[1]);
+            if (annotations[annotationIndex]?.type === 'file_citation') {
+              const fileId = annotations[annotationIndex].file_citation?.file_id;
+              const filename = citationMap.get(fileId) || fileId;
+              // Extract a cleaner name for inline reference
+              const cleanName = formatReferenceTitle(filename);
+              return ` **[${cleanName}]**`;
+            }
           }
+          // If we can't match annotation, remove the marker entirely
           return '';
         });
 
-        // Populate references array for frontend rendering
-        references = Array.from(citationMap.values());
+        // Format references as "Título (Ano)" for display
+        references = Array.from(citationMap.values()).map(filename => formatReferenceTitle(filename));
         console.log(`Processed answer with ${citationMap.size} unique references`);
       }
     }
