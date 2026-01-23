@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Pencil, Check, X, Filter, XCircle as ClearIcon, RefreshCw } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, Check, X, Filter, XCircle as ClearIcon, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
@@ -51,9 +51,8 @@ const Documents = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingDoc, setEditingDoc] = useState<string | null>(null);
-  const [editTags, setEditTags] = useState<string>('');
-  const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState<string>('');
+  const [editTags, setEditTags] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [reuploadingDocId, setReuploadingDocId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +104,7 @@ const Documents = () => {
     }
   };
 
-  const handleUpdateTitle = async (docId: string) => {
+  const handleSaveEdit = async (docId: string) => {
     if (!editTitle.trim()) {
       toast({
         title: "Erro",
@@ -116,58 +115,42 @@ const Documents = () => {
     }
 
     try {
+      const tags = editTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+      
       const response = await supabase.functions.invoke('update-document', {
-        body: { documentId: docId, original_name: editTitle.trim() },
+        body: { documentId: docId, original_name: editTitle.trim(), tags },
       });
 
       if (response.error) throw response.error;
       if (!response.data?.success) throw new Error(response.data?.error || 'Unknown error');
 
       toast({
-        title: "Título atualizado!",
-        description: "O título foi atualizado com sucesso.",
+        title: "Documento atualizado!",
+        description: "O título e tags foram atualizados com sucesso.",
       });
 
-      setEditingTitle(null);
-      setEditTitle('');
+      cancelEdit();
       fetchDocuments();
     } catch (error) {
-      console.error('Error updating title:', error);
+      console.error('Error updating document:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar o título.",
+        description: "Não foi possível atualizar o documento.",
         variant: "destructive",
       });
     }
   };
 
-  const handleUpdateTags = async (docId: string) => {
-    try {
-      const tags = editTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-      
-      const response = await supabase.functions.invoke('update-document', {
-        body: { documentId: docId, tags },
-      });
+  const startEdit = (doc: Document) => {
+    setEditingDoc(doc.id);
+    setEditTitle(doc.original_name);
+    setEditTags(doc.tags?.join(', ') || '');
+  };
 
-      if (response.error) throw response.error;
-      if (!response.data?.success) throw new Error(response.data?.error || 'Unknown error');
-
-      toast({
-        title: "Tags atualizadas!",
-        description: "As tags foram atualizadas com sucesso.",
-      });
-
-      setEditingDoc(null);
-      setEditTags('');
-      fetchDocuments();
-    } catch (error) {
-      console.error('Error updating tags:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível atualizar as tags.",
-        variant: "destructive",
-      });
-    }
+  const cancelEdit = () => {
+    setEditingDoc(null);
+    setEditTitle('');
+    setEditTags('');
   };
 
   const handleDelete = async (docId: string) => {
@@ -267,7 +250,7 @@ const Documents = () => {
     }
   };
 
-  const isEditing = editingDoc !== null || editingTitle !== null;
+  const isEditing = editingDoc !== null;
 
   if (loading) {
     return (
@@ -380,132 +363,100 @@ const Documents = () => {
                   className="p-4 bg-card rounded-lg border border-border shadow-sm"
                 >
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-3 mb-2">
-                        <FileText size={24} className="text-primary flex-shrink-0 mt-0.5" />
-                        
-                        {editingTitle === doc.id ? (
-                          <div className="flex-1 flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={editTitle}
-                              onChange={(e) => setEditTitle(e.target.value)}
-                              className="flex-1 px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleUpdateTitle(doc.id);
-                                if (e.key === 'Escape') {
-                                  setEditingTitle(null);
-                                  setEditTitle('');
-                                }
-                              }}
-                            />
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleUpdateTitle(doc.id)}
-                              className="p-1.5 h-auto"
-                            >
-                              <Check size={16} className="text-primary" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingTitle(null);
-                                setEditTitle('');
-                              }}
-                              className="p-1.5 h-auto"
-                            >
-                              <X size={16} className="text-muted-foreground" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <h3 className="font-semibold text-foreground text-base break-words">{doc.original_name}</h3>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingTitle(doc.id);
-                                setEditTitle(doc.original_name);
-                              }}
-                              disabled={isEditing}
-                              className="p-1 h-auto opacity-50 hover:opacity-100"
-                            >
-                              <Pencil size={14} />
-                            </Button>
-                          </div>
-                        )}
-                        
-                        {doc.processing_status === 'completed' ? (
-                          <CheckCircle2 size={24} className="text-tag flex-shrink-0" />
-                        ) : doc.processing_status === 'error' ? (
-                          <XCircle size={24} className="text-destructive flex-shrink-0" />
-                        ) : (
-                          <Badge variant="secondary" className="flex-shrink-0">{doc.processing_status}</Badge>
-                        )}
-                      </div>
-                      
-                      <div className="text-sm text-foreground/70 mb-3 font-medium">
-                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
-                        {doc.processing_status === 'error' && doc.error_message && (
-                          <span className="text-destructive ml-2">
-                            • Falha no processamento
-                          </span>
-                        )}
-                      </div>
-
+                      <div className="flex-1 min-w-0">
                       {editingDoc === doc.id ? (
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="text"
-                            value={editTags}
-                            onChange={(e) => setEditTags(e.target.value)}
-                            placeholder="Tags separadas por vírgula"
-                            className="flex-1 px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
-                            autoFocus
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => handleUpdateTags(doc.id)}
-                          >
-                            Salvar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingDoc(null);
-                              setEditTags('');
-                            }}
-                          >
-                            Cancelar
-                          </Button>
+                        // Modo de edição combinado (título + tags)
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <FileText size={24} className="text-primary flex-shrink-0 mt-1" />
+                            <div className="flex-1 space-y-3">
+                              <div>
+                                <label className="text-xs text-muted-foreground mb-1 block">Título</label>
+                                <input
+                                  type="text"
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-semibold"
+                                  autoFocus
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs text-muted-foreground mb-1 block">Tags (separadas por vírgula)</label>
+                                <input
+                                  type="text"
+                                  value={editTags}
+                                  onChange={(e) => setEditTags(e.target.value)}
+                                  placeholder="tag1, tag2, tag3"
+                                  className="w-full px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSaveEdit(doc.id)}
+                                >
+                                  <Check size={14} className="mr-1" />
+                                  Salvar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={cancelEdit}
+                                >
+                                  <X size={14} className="mr-1" />
+                                  Cancelar
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       ) : (
-                        <div className="flex flex-wrap gap-2">
-                          {doc.tags && doc.tags.length > 0 ? (
-                            doc.tags.map((tag, index) => {
-                              const color = getTagColor(tag);
-                              return (
-                                <Badge 
-                                  key={index} 
-                                  className="gap-1 border-0"
-                                  style={{ 
-                                    backgroundColor: color.bg, 
-                                    color: color.text 
-                                  }}
-                                >
-                                  <Tag size={12} />
-                                  {tag}
-                                </Badge>
-                              );
-                            })
-                          ) : (
-                            <span className="text-sm text-foreground/60 font-medium bg-muted px-2 py-1 rounded">Sem tags</span>
-                          )}
-                        </div>
+                        // Modo de visualização
+                        <>
+                          <div className="flex items-start gap-3 mb-2">
+                            <FileText size={24} className="text-primary flex-shrink-0 mt-0.5" />
+                            <h3 className="font-semibold text-foreground text-base break-words flex-1">{doc.original_name}</h3>
+                            {doc.processing_status === 'completed' ? (
+                              <CheckCircle2 size={24} className="text-tag flex-shrink-0" />
+                            ) : doc.processing_status === 'error' ? (
+                              <XCircle size={24} className="text-destructive flex-shrink-0" />
+                            ) : (
+                              <Badge variant="secondary" className="flex-shrink-0">{doc.processing_status}</Badge>
+                            )}
+                          </div>
+                          
+                          <div className="text-sm text-foreground/70 mb-3 font-medium ml-9">
+                            {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
+                            {doc.processing_status === 'error' && doc.error_message && (
+                              <span className="text-destructive ml-2">
+                                • Falha no processamento
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 ml-9">
+                            {doc.tags && doc.tags.length > 0 ? (
+                              doc.tags.map((tag, index) => {
+                                const color = getTagColor(tag);
+                                return (
+                                  <Badge 
+                                    key={index} 
+                                    className="gap-1 border-0"
+                                    style={{ 
+                                      backgroundColor: color.bg, 
+                                      color: color.text 
+                                    }}
+                                  >
+                                    <Tag size={12} />
+                                    {tag}
+                                  </Badge>
+                                );
+                              })
+                            ) : (
+                              <span className="text-sm text-foreground/60 font-medium bg-muted px-2 py-1 rounded">Sem tags</span>
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
 
@@ -529,10 +480,7 @@ const Documents = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
-                          setEditingDoc(doc.id);
-                          setEditTags(doc.tags?.join(', ') || '');
-                        }}
+                        onClick={() => startEdit(doc)}
                         disabled={isEditing}
                         className="p-2"
                       >
