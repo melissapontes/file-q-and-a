@@ -17,28 +17,28 @@ interface Document {
   error_message: string | null;
 }
 
-// Cores HSL consistentes para tags - hash-based para mesma tag = mesma cor sempre
-const TAG_COLORS = [
-  { bg: "hsl(180, 70%, 35%)", text: "hsl(0, 0%, 100%)" },    // teal
-  { bg: "hsl(280, 60%, 45%)", text: "hsl(0, 0%, 100%)" },    // purple
-  { bg: "hsl(340, 70%, 50%)", text: "hsl(0, 0%, 100%)" },    // pink
-  { bg: "hsl(200, 70%, 45%)", text: "hsl(0, 0%, 100%)" },    // blue
-  { bg: "hsl(30, 80%, 50%)", text: "hsl(0, 0%, 100%)" },     // orange
-  { bg: "hsl(150, 60%, 40%)", text: "hsl(0, 0%, 100%)" },    // green
-  { bg: "hsl(260, 50%, 55%)", text: "hsl(0, 0%, 100%)" },    // violet
-  { bg: "hsl(10, 70%, 55%)", text: "hsl(0, 0%, 100%)" },     // red-orange
-];
-
-// Gera um índice consistente baseado no hash da string
-const getTagColorIndex = (tag: string): number => {
-  let hash = 0;
+// Gera cor HSL consistente baseada no hash da string - cada tag terá cor única
+const getTagColor = (tag: string): { bg: string; text: string } => {
+  // Hash mais robusto usando FNV-1a para melhor distribuição
+  let hash = 2166136261;
   for (let i = 0; i < tag.length; i++) {
-    hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+    hash ^= tag.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
   }
-  return Math.abs(hash) % TAG_COLORS.length;
+  hash = Math.abs(hash);
+  
+  // Gera hue entre 0-360, evitando cores muito próximas
+  const hue = hash % 360;
+  // Saturation entre 55-75% para cores vibrantes
+  const saturation = 55 + (hash % 20);
+  // Lightness entre 40-50% para bom contraste com texto branco
+  const lightness = 40 + ((hash >> 8) % 10);
+  
+  return {
+    bg: `hsl(${hue}, ${saturation}%, ${lightness}%)`,
+    text: "hsl(0, 0%, 100%)"
+  };
 };
-
-const getTagColor = (tag: string) => TAG_COLORS[getTagColorIndex(tag)];
 
 const Documents = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
