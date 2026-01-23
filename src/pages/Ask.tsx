@@ -217,13 +217,15 @@ const Ask = () => {
                       {message.references && message.references.length > 0 && (
                         <div className="mt-4 pt-3 border-t border-border/50">
                           <div className="flex items-center gap-2 mb-2">
-                            <FileText size={14} className="text-muted-foreground" />
-                            <span className="text-xs font-semibold text-muted-foreground">Referências:</span>
+                            <FileText size={14} className="text-primary" />
+                            <span className="text-sm font-semibold text-foreground">
+                              Referência{message.references.length > 1 ? 's' : ''}:
+                            </span>
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-1 pl-5">
                             {message.references.map((ref, idx) => (
-                              <p key={idx} className="text-xs text-muted-foreground pl-4">
-                                {idx + 1}. {ref}
+                              <p key={idx} className="text-sm text-muted-foreground">
+                                • {ref}
                               </p>
                             ))}
                           </div>
