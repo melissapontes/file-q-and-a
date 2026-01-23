@@ -91,12 +91,12 @@ const Documents = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('documents')
-        .update({ original_name: editTitle.trim() })
-        .eq('id', docId);
+      const response = await supabase.functions.invoke('update-document', {
+        body: { documentId: docId, original_name: editTitle.trim() },
+      });
 
-      if (error) throw error;
+      if (response.error) throw response.error;
+      if (!response.data?.success) throw new Error(response.data?.error || 'Unknown error');
 
       toast({
         title: "Título atualizado!",
@@ -120,12 +120,12 @@ const Documents = () => {
     try {
       const tags = editTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
       
-      const { error } = await supabase
-        .from('documents')
-        .update({ tags })
-        .eq('id', docId);
+      const response = await supabase.functions.invoke('update-document', {
+        body: { documentId: docId, tags },
+      });
 
-      if (error) throw error;
+      if (response.error) throw response.error;
+      if (!response.data?.success) throw new Error(response.data?.error || 'Unknown error');
 
       toast({
         title: "Tags atualizadas!",
