@@ -1,12 +1,10 @@
-import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { Upload as UploadIcon, FileText, AlertCircle, CheckCircle } from "lucide-react";
+import { Upload as UploadIcon, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const Upload = () => {
@@ -15,14 +13,6 @@ const Upload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [tags, setTags] = useState<string>('');
   const { toast } = useToast();
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const validFiles = acceptedFiles.filter(file => {
@@ -83,17 +73,12 @@ const Upload = () => {
         }
 
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          navigate("/auth");
-          return;
-        }
 
         const response = await supabase.functions.invoke('upload-document', {
           body: formData,
-          headers: {
+          headers: session ? {
             Authorization: `Bearer ${session.access_token}`,
-          },
+          } : undefined,
         });
 
         if (response.error) {
@@ -123,21 +108,6 @@ const Upload = () => {
       setUploadProgress(0);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-secondary flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gradient-secondary p-6">
