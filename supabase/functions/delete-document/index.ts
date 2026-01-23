@@ -28,25 +28,6 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from auth header
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No authorization header', success: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid token', success: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Get document ID from request
     const { documentId } = await req.json();
     if (!documentId) {
@@ -56,17 +37,16 @@ serve(async (req) => {
       );
     }
 
-    // Get document record (verify ownership)
+    // Get document record
     const { data: document, error: fetchError } = await supabase
       .from('documents')
       .select('*')
       .eq('id', documentId)
-      .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (fetchError || !document) {
       return new Response(
-        JSON.stringify({ error: 'Document not found or access denied', success: false }),
+        JSON.stringify({ error: 'Document not found', success: false }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -109,8 +89,7 @@ serve(async (req) => {
     const { error: deleteError } = await supabase
       .from('documents')
       .delete()
-      .eq('id', documentId)
-      .eq('user_id', user.id);
+      .eq('id', documentId);
 
     if (deleteError) {
       console.error('Database delete error:', deleteError);

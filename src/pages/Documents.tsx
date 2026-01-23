@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,31 +23,20 @@ const Documents = () => {
   const [editingDoc, setEditingDoc] = useState<string | null>(null);
   const [editTags, setEditTags] = useState<string>('');
   const { toast } = useToast();
-  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/auth");
-    }
-  }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (user) {
-      fetchDocuments();
-    }
-  }, [user]);
+    fetchDocuments();
+  }, []);
 
   const fetchDocuments = async () => {
     try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('id, original_name, tags, created_at, file_size, processing_status, error_message')
-        .order('created_at', { ascending: false });
+      // Use edge function to fetch documents (bypasses RLS)
+      const response = await supabase.functions.invoke('list-documents');
+      
+      if (response.error) throw response.error;
 
-      if (error) throw error;
-
-      setDocuments(data || []);
+      setDocuments(response.data?.documents || []);
     } catch (error) {
       console.error('Error fetching documents:', error);
       toast({
@@ -96,15 +84,8 @@ const Documents = () => {
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/auth");
-        return;
-      }
-
       const response = await supabase.functions.invoke('delete-document', {
         body: { documentId: docId },
-        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (response.error) throw response.error;
@@ -125,7 +106,7 @@ const Documents = () => {
     }
   };
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-secondary flex items-center justify-center">
         <div className="text-center">
@@ -134,10 +115,6 @@ const Documents = () => {
         </div>
       </div>
     );
-  }
-
-  if (!user) {
-    return null;
   }
 
   return (
