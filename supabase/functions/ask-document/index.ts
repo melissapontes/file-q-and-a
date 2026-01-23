@@ -169,6 +169,7 @@ serve(async (req) => {
     });
 
     let filesList = 'Arquivos disponíveis no vector store: (nenhum encontrado)';
+    let filesListWithNames = ''; // Lista legível com nomes dos arquivos
     // Files present in the vector store with their human filenames
     const vectorFiles: { id: string; filename: string }[] = [];
     // Files we want to prioritize for the current question (by heuristics)
@@ -196,8 +197,15 @@ serve(async (req) => {
           }
         }
 
+        // Criar lista legível com nomes de arquivos
+        const fileNames = vectorFiles.map(f => f.filename).filter(name => !name.startsWith('file-'));
+        filesListWithNames = fileNames.length > 0 
+          ? `DOCUMENTOS DISPONÍVEIS NA BASE:\n${fileNames.map((name, i) => `${i + 1}. ${name}`).join('\n')}`
+          : '';
+        
         filesList = `Arquivos disponíveis no vector store (${vectorFiles.length} arquivos): ${vectorFiles.map(f => f.id).join(', ')}`;
         console.log(filesList);
+        console.log('Nomes dos arquivos:', fileNames);
 
         // Enhanced heuristic using tags and filename matching
         const qLower = question.toLowerCase();
@@ -277,25 +285,26 @@ serve(async (req) => {
         name: 'Nefrologia Veterinária RAG',
         instructions: `Você é um assistente especializado em nefrologia veterinária. 
 
-${filesList}
+${filesListWithNames}
 
-INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
-1. Você DEVE usar a ferramenta file_search para buscar nos documentos relevantes
-2. Quando o usuário pedir para listar documentos sobre um tópico específico (ex: "oxalato de cálcio"), você deve:
-   - Buscar APENAS documentos que contenham informações relevantes sobre esse tópico
-   - Retornar SOMENTE os documentos que realmente falam sobre o assunto solicitado
-   - NÃO retornar todos os documentos do vector store
-3. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações
-4. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
-5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
-6. SE O TEMA FOR OXALATO DE CÁLCIO EM CÃES, priorize e cite o(s) documento(s) com nomes semelhantes a "canine_calcium_oxalate_uroliths" quando disponíveis.
-7. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
+INSTRUÇÕES CRÍTICAS:
+1. **LISTAGEM DE DOCUMENTOS**: Quando o usuário pedir para listar os artigos/documentos disponíveis na base, você DEVE retornar a lista completa de documentos mostrada acima. Responda listando cada documento com seu nome completo.
+
+2. Você DEVE usar a ferramenta file_search para buscar nos documentos quando precisar de informações específicas.
+
+3. Quando o usuário pedir para listar documentos sobre um tópico específico (ex: "oxalato de cálcio"), busque APENAS documentos que contenham informações relevantes sobre esse tópico.
+
+4. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações.
+
+5. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU").
+
+6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos.
+
+7. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Avise claramente ao usuário. NÃO invente informações.
 
 FORMATAÇÃO DA RESPOSTA:
-- Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
-- Deixe uma linha em branco entre cada tópico numerado
-- Coloque o texto logo após o número, na mesma linha (exemplo: "1. Texto do tópico")
-- Ao citar a fonte, coloque em negrido logo após a informação no mesmo parágrafo
+- Organize sua resposta em tópicos numerados quando apropriado
+- Ao citar a fonte, coloque em negrito logo após a informação
 - Na seção de documentos utilizados, informe o nome completo do arquivo PDF
 
 IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
