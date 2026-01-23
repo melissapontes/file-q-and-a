@@ -168,8 +168,8 @@ const Ask = () => {
         </div>
 
         <div className="flex flex-col gap-4 sm:gap-6">
-          <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
-            <ScrollArea className="max-h-[50vh] sm:max-h-[55vh] pr-2 sm:pr-4">
+          <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft overflow-hidden">
+            <ScrollArea className="h-[50vh] sm:h-[55vh] pr-2 sm:pr-4">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
