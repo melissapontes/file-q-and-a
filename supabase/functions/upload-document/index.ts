@@ -33,25 +33,25 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get user from auth header
+    // Try to get user from auth header (optional - allows anonymous uploads)
+    let userId = 'anonymous';
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'No authorization header', success: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    
+    if (authHeader && authHeader !== `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`) {
+      try {
+        const jwt = authHeader.replace('Bearer ', '');
+        const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+        
+        if (!authError && user) {
+          userId = user.id;
+          console.log('Authenticated user:', userId);
+        }
+      } catch (e) {
+        console.log('Auth check failed, proceeding as anonymous');
+      }
     }
-
-    const jwt = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-
-    if (authError || !user) {
-      console.error('Auth error:', authError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid token', success: false }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    
+    console.log('Processing upload for user:', userId);
 
     // Parse multipart form data
     const formData = await req.formData();
@@ -145,7 +145,7 @@ serve(async (req) => {
     const { data: documentRecord, error: dbError } = await supabase
       .from('documents')
       .insert({
-        user_id: user.id,
+        user_id: userId,
         filename: file.name,
         original_name: file.name,
         file_size: file.size,
