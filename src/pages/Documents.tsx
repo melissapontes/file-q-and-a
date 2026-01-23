@@ -91,21 +91,27 @@ const Documents = () => {
   };
 
   const handleDelete = async (docId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este documento?')) {
+    if (!confirm('Tem certeza que deseja excluir este documento? Isso também removerá do OpenAI.')) {
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', docId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate("/auth");
+        return;
+      }
 
-      if (error) throw error;
+      const response = await supabase.functions.invoke('delete-document', {
+        body: { documentId: docId },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (response.error) throw response.error;
 
       toast({
         title: "Documento excluído!",
-        description: "O documento foi removido com sucesso.",
+        description: "O documento foi removido do sistema e do OpenAI.",
       });
 
       fetchDocuments();

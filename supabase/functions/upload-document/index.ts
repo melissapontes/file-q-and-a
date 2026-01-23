@@ -10,13 +10,11 @@ const corsHeaders = {
 serve(async (req) => {
   console.log('Upload document function called');
 
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -29,14 +27,10 @@ serve(async (req) => {
           error: 'OpenAI API key or Vector Store ID not configured',
           success: false 
         }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create Supabase client
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user from auth header
@@ -48,7 +42,6 @@ serve(async (req) => {
       );
     }
 
-    // Verify JWT and get user
     const jwt = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
 
@@ -72,7 +65,7 @@ serve(async (req) => {
       );
     }
 
-    // Parse tags from comma-separated string
+    // Parse tags
     let tags: string[] = [];
     if (tagsString && tagsString.trim()) {
       tags = tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
@@ -91,42 +84,76 @@ serve(async (req) => {
       );
     }
 
-    // Generate file path
-    const fileExtension = file.name.split('.').pop();
-    const fileName = `${crypto.randomUUID()}.${fileExtension}`;
-    const filePath = `${user.id}/${fileName}`;
+    console.log('Processing file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
-    console.log('Uploading file to Supabase Storage:', filePath);
+    // Upload file to OpenAI
+    const fileBuffer = await file.arrayBuffer();
+    const fileBlob = new Blob([fileBuffer], { type: file.type });
 
-    // Upload to Supabase Storage
-    const { data: storageData, error: storageError } = await supabase.storage
-      .from('documents')
-      .upload(filePath, file, {
-        contentType: file.type,
-      });
+    const formDataOpenAI = new FormData();
+    formDataOpenAI.append('file', fileBlob, file.name);
+    formDataOpenAI.append('purpose', 'assistants');
 
-    if (storageError) {
-      console.error('Storage error:', storageError);
+    console.log('Uploading to OpenAI...');
+    const openaiFileResponse = await fetch('https://api.openai.com/v1/files', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+      body: formDataOpenAI,
+    });
+
+    if (!openaiFileResponse.ok) {
+      const errorText = await openaiFileResponse.text();
+      console.error('OpenAI file upload error:', errorText);
       return new Response(
-        JSON.stringify({ 
-          error: `Storage upload failed: ${storageError.message}`,
-          success: false 
-        }),
+        JSON.stringify({ error: `OpenAI upload failed: ${errorText}`, success: false }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Create document record in database
+    const openaiFileData = await openaiFileResponse.json();
+    console.log('File uploaded to OpenAI:', openaiFileData.id);
+
+    // Add file to vector store
+    console.log('Adding to vector store...');
+    const vectorStoreResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ file_id: openaiFileData.id }),
+    });
+
+    if (!vectorStoreResponse.ok) {
+      const errorText = await vectorStoreResponse.text();
+      console.error('Vector store upload error:', errorText);
+      // Cleanup OpenAI file on failure
+      await fetch(`https://api.openai.com/v1/files/${openaiFileData.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+      });
+      return new Response(
+        JSON.stringify({ error: `Vector store upload failed: ${errorText}`, success: false }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const vectorStoreData = await vectorStoreResponse.json();
+    console.log('File added to vector store:', vectorStoreData.id);
+
+    // Create document record in database (no more storage_path)
     const { data: documentRecord, error: dbError } = await supabase
       .from('documents')
       .insert({
         user_id: user.id,
-        filename: fileName,
+        filename: file.name,
         original_name: file.name,
         file_size: file.size,
         mime_type: file.type,
-        storage_path: filePath,
-        processing_status: 'processing',
+        storage_path: null, // No longer storing files in Supabase
+        processing_status: 'completed',
+        openai_file_id: openaiFileData.id,
+        vector_store_file_id: vectorStoreData.id,
         tags: tags.length > 0 ? tags : []
       })
       .select()
@@ -134,110 +161,31 @@ serve(async (req) => {
 
     if (dbError) {
       console.error('Database error:', dbError);
-      // Clean up storage file if DB insert fails
-      await supabase.storage.from('documents').remove([filePath]);
+      // Cleanup OpenAI resources on failure
+      await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${vectorStoreData.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+      });
+      await fetch(`https://api.openai.com/v1/files/${openaiFileData.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+      });
       return new Response(
-        JSON.stringify({ 
-          error: `Database error: ${dbError.message}`,
-          success: false 
-        }),
+        JSON.stringify({ error: `Database error: ${dbError.message}`, success: false }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Background task to process with OpenAI
-    const backgroundTask = async () => {
-      try {
-        console.log('Starting OpenAI processing for document:', documentRecord.id);
-
-        // Convert file to buffer for OpenAI
-        const fileBuffer = await file.arrayBuffer();
-        const fileBlob = new Blob([fileBuffer], { type: file.type });
-
-        // Upload file to OpenAI
-        const formDataOpenAI = new FormData();
-        formDataOpenAI.append('file', fileBlob, file.name);
-        formDataOpenAI.append('purpose', 'assistants');
-
-        const openaiFileResponse = await fetch('https://api.openai.com/v1/files', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-          },
-          body: formDataOpenAI,
-        });
-
-        if (!openaiFileResponse.ok) {
-          const errorText = await openaiFileResponse.text();
-          console.error('OpenAI file upload error:', errorText);
-          throw new Error(`OpenAI file upload failed: ${errorText}`);
-        }
-
-        const openaiFileData = await openaiFileResponse.json();
-        console.log('File uploaded to OpenAI:', openaiFileData.id);
-
-        // Add file to vector store
-        const vectorStoreResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            file_id: openaiFileData.id,
-          }),
-        });
-
-        if (!vectorStoreResponse.ok) {
-          const errorText = await vectorStoreResponse.text();
-          console.error('Vector store upload error:', errorText);
-          throw new Error(`Vector store upload failed: ${errorText}`);
-        }
-
-        const vectorStoreData = await vectorStoreResponse.json();
-        console.log('File added to vector store:', vectorStoreData.id);
-
-        // Update document record with success
-        await supabase
-          .from('documents')
-          .update({
-            openai_file_id: openaiFileData.id,
-            vector_store_file_id: vectorStoreData.id,
-            processing_status: 'completed'
-          })
-          .eq('id', documentRecord.id);
-
-        console.log('Document processing completed successfully');
-
-      } catch (error) {
-        console.error('Background processing error:', error);
-        
-        // Update document record with error
-        await supabase
-          .from('documents')
-          .update({
-            processing_status: 'error',
-            error_message: error instanceof Error ? error.message : 'Unknown error occurred'
-          })
-          .eq('id', documentRecord.id);
-      }
-    };
-
-    // Start background processing (fire and forget)
-    backgroundTask().catch(console.error);
-
-    console.log('Document upload initiated successfully');
+    console.log('Document created successfully:', documentRecord.id);
 
     return new Response(
       JSON.stringify({
         success: true,
         documentId: documentRecord.id,
-        message: 'Upload iniciado com sucesso. O processamento pode levar alguns segundos.',
-        processing: true
+        message: 'Documento enviado e processado com sucesso!',
+        processing: false
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -247,10 +195,7 @@ serve(async (req) => {
         error: error instanceof Error ? error.message : 'Unknown error occurred',
         success: false 
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

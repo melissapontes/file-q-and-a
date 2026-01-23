@@ -25,7 +25,7 @@ export type Database = {
           openai_file_id: string | null
           original_name: string
           processing_status: string | null
-          storage_path: string
+          storage_path: string | null
           tags: string[] | null
           updated_at: string
           user_id: string
@@ -41,7 +41,7 @@ export type Database = {
           openai_file_id?: string | null
           original_name: string
           processing_status?: string | null
-          storage_path: string
+          storage_path?: string | null
           tags?: string[] | null
           updated_at?: string
           user_id: string
@@ -57,7 +57,7 @@ export type Database = {
           openai_file_id?: string | null
           original_name?: string
           processing_status?: string | null
-          storage_path?: string
+          storage_path?: string | null
           tags?: string[] | null
           updated_at?: string
           user_id?: string

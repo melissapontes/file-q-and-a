@@ -4,7 +4,10 @@ project_id = "gvgwajegdhqjmhqkkgwl"
 verify_jwt = false
 
 [functions.upload-document]
-verify_jwt = true
+verify_jwt = false
 
 [functions.reset-password]
+verify_jwt = false
+
+[functions.delete-document]
 verify_jwt = false
