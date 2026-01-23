@@ -332,18 +332,17 @@ INSTRUÇÕES CRÍTICAS:
 
 3. Quando o usuário pedir para listar documentos sobre um tópico específico (ex: "oxalato de cálcio"), busque APENAS documentos que contenham informações relevantes sobre esse tópico.
 
-4. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações.
+4. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações inline.
 
-5. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU").
+5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos.
 
-6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos.
-
-7. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Avise claramente ao usuário. NÃO invente informações.
+6. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Avise claramente ao usuário. NÃO invente informações.
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize sua resposta em tópicos numerados quando apropriado
-- Ao citar a fonte, coloque em negrito logo após a informação
-- Na seção de documentos utilizados, informe o nome completo do arquivo PDF
+- As citações aparecerão automaticamente como marcadores inline (ex: 【4:2†source】) - NÃO remova esses marcadores
+- **NÃO inclua seções como "Documentos utilizados", "Fontes consultadas" ou listas de referências no final** - isso será gerado automaticamente pelo sistema
+- Foque apenas no conteúdo da resposta
 
 IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
         model: 'gpt-4o-mini',
@@ -577,6 +576,14 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
           // If we can't match annotation, remove the marker entirely
           return '';
         });
+
+        // Remove "Documentos utilizados" section and similar patterns that the AI might add
+        answer = answer
+          .replace(/\n*(\*\*)?Documentos? utilizados?(\*\*)?:?\n[\s\S]*?(?=\n\n|$)/gi, '')
+          .replace(/\n*(\*\*)?Fontes? consultadas?(\*\*)?:?\n[\s\S]*?(?=\n\n|$)/gi, '')
+          .replace(/\n*(\*\*)?Referências?(\*\*)?:?\n[\s\S]*?(?=\n\n|$)/gi, '')
+          .replace(/\n*-\s*"[^"]+\.(pdf|txt|docx|md)"\s*$/gim, '')
+          .trim();
 
         // Format references as "Título (Ano)" for display
         references = Array.from(citationMap.values()).map(filename => formatReferenceTitle(filename));
