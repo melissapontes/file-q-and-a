@@ -580,14 +580,7 @@ REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agru
           }
         }
         
-        // Create a numbered reference list: fileId -> number
-        const fileIdToNumber = new Map<string, number>();
-        let refNumber = 1;
-        for (const fileId of citationMap.keys()) {
-          fileIdToNumber.set(fileId, refNumber++);
-        }
-        
-        // Build a map from annotation marker patterns to file IDs
+        // Build a map from annotation index to file IDs
         // OpenAI uses patterns like 【0:1†source】 where the first number is annotation index
         const annotationToFileId = new Map<number, string>();
         for (let i = 0; i < annotations.length; i++) {
@@ -597,8 +590,27 @@ REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agru
         }
         console.log(`Mapped ${annotationToFileId.size} annotations to file IDs`);
         
-        // Replace ALL citation markers (format: 【number:number†anything】) with numbered references
-        // The actual format can be 【4:2†source】 or 【4:2†filename.pdf】
+        // First pass: find all citation markers in order of appearance in text
+        // This ensures [1] is the FIRST reference that appears in the text
+        const citationMarkersInOrder: string[] = [];
+        const markerRegex = /【(\d+):(\d+)†[^】]*】/g;
+        let markerMatch;
+        while ((markerMatch = markerRegex.exec(rawAnswer)) !== null) {
+          const annIdx = parseInt(markerMatch[1]);
+          const fileId = annotationToFileId.get(annIdx);
+          if (fileId && !citationMarkersInOrder.includes(fileId)) {
+            citationMarkersInOrder.push(fileId);
+          }
+        }
+        
+        // Create numbered reference list based on order of first appearance in text
+        const fileIdToNumber = new Map<string, number>();
+        citationMarkersInOrder.forEach((fileId, index) => {
+          fileIdToNumber.set(fileId, index + 1);
+        });
+        console.log(`References in order of appearance: ${citationMarkersInOrder.length}`);
+        
+        // Replace ALL citation markers with numbered references
         answer = rawAnswer.replace(/【(\d+):(\d+)†[^】]*】/g, (match: string, annIdx: string) => {
           const annotationIndex = parseInt(annIdx);
           const fileId = annotationToFileId.get(annotationIndex);
@@ -610,9 +622,7 @@ REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agru
             }
           }
           
-          // If we can't find by annotation index, try to find any matching fileId
-          // Sometimes OpenAI uses different indexing
-          console.log(`Could not find annotation ${annotationIndex}, trying fallback...`);
+          console.log(`Could not find annotation ${annotationIndex}`);
           return '';
         });
 
@@ -624,13 +634,13 @@ REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agru
           .replace(/\n*-\s*"[^"]+\.(pdf|txt|docx|md)"\s*$/gim, '')
           .trim();
 
-        // Format references as numbered list: "[1] Título (Ano)"
-        references = Array.from(citationMap.entries()).map(([fileId, filename]) => {
-          const num = fileIdToNumber.get(fileId);
+        // Format references as numbered list in order of first appearance
+        references = citationMarkersInOrder.map((fileId, index) => {
+          const filename = citationMap.get(fileId) || fileId;
           const cleanName = formatReferenceTitle(filename);
-          return `[${num}] ${cleanName}`;
+          return `[${index + 1}] ${cleanName}`;
         });
-        console.log(`Processed answer with ${citationMap.size} unique references`);
+        console.log(`Processed answer with ${references.length} unique references`);
       }
     }
 
