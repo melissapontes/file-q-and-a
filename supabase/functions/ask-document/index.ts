@@ -246,11 +246,61 @@ serve(async (req) => {
         console.log(filesList);
         console.log('Nomes dos arquivos:', fileNames);
 
-        // Enhanced heuristic using tags and filename matching
+        // Enhanced heuristic using tags and filename matching with bilingual support
         const qLower = question.toLowerCase();
         
         // Extract potential keywords from the question
         const questionWords = qLower.split(/\s+/).filter(w => w.length > 3);
+        
+        // Bilingual term mappings (Portuguese <-> English)
+        const termTranslations: Record<string, string[]> = {
+          'oxalato': ['oxalate', 'oxalato', 'caox'],
+          'oxalate': ['oxalato', 'oxalate', 'caox'],
+          'calcio': ['calcium', 'calcio', 'cálcio'],
+          'calcium': ['calcio', 'calcium', 'cálcio'],
+          'cálcio': ['calcium', 'calcio', 'cálcio'],
+          'urolitíase': ['urolithiasis', 'urolitiase', 'uroliths', 'urolith'],
+          'urolithiasis': ['urolitíase', 'urolitiase', 'uroliths'],
+          'cálculo': ['stone', 'stones', 'calculi', 'calculus', 'calculo'],
+          'calculo': ['stone', 'stones', 'calculi', 'calculus', 'cálculo'],
+          'pedra': ['stone', 'stones', 'calculi'],
+          'estruvita': ['struvite', 'estruvita'],
+          'struvite': ['estruvita', 'struvite'],
+          'renal': ['kidney', 'renal', 'rim', 'rins'],
+          'rim': ['kidney', 'renal', 'rim', 'rins'],
+          'bexiga': ['bladder', 'vesical', 'bexiga'],
+          'bladder': ['bexiga', 'vesical', 'bladder'],
+        };
+        
+        // Expand question words with translations
+        const expandedTerms = new Set<string>();
+        questionWords.forEach(word => {
+          expandedTerms.add(word);
+          // Check if word matches any key or value in translations
+          Object.entries(termTranslations).forEach(([key, values]) => {
+            if (word.includes(key) || key.includes(word)) {
+              values.forEach(v => expandedTerms.add(v));
+              expandedTerms.add(key);
+            }
+          });
+        });
+        
+        // Add specific topic detection
+        const isOxalateQuestion = qLower.includes('oxalato') || qLower.includes('oxalate');
+        const isUrolithQuestion = qLower.includes('urolití') || qLower.includes('urólito') || qLower.includes('urolith') || qLower.includes('cálculo') || qLower.includes('calculo') || qLower.includes('pedra');
+        const isStruviteQuestion = qLower.includes('estruvita') || qLower.includes('struvite');
+        
+        if (isOxalateQuestion) {
+          ['oxalate', 'oxalato', 'calcium', 'calcio', 'caox', 'urolithiasis', 'urolitíase'].forEach(t => expandedTerms.add(t));
+        }
+        if (isUrolithQuestion) {
+          ['urolithiasis', 'urolitíase', 'urolith', 'urólito', 'stone', 'stones', 'calculi'].forEach(t => expandedTerms.add(t));
+        }
+        if (isStruviteQuestion) {
+          ['struvite', 'estruvita', 'map', 'magnesium', 'ammonium', 'phosphate'].forEach(t => expandedTerms.add(t));
+        }
+        
+        console.log('Expanded search terms:', Array.from(expandedTerms).join(', '));
         
         // Score each document based on tag and filename relevance
         const scoredFiles = vectorFiles.map(vf => {
@@ -259,51 +309,61 @@ serve(async (req) => {
           
           // Find matching document in Supabase data
           const docData = documentsWithTags.find(d => d.openai_file_id === vf.id);
+          const originalNameLower = docData?.original_name?.toLowerCase() || '';
+          
+          // Score based on expanded terms matching filename or original name
+          const expandedArray = Array.from(expandedTerms);
+          
+          expandedArray.forEach(term => {
+            if (nameLower.includes(term)) score += 15;
+            if (originalNameLower.includes(term)) score += 15;
+          });
           
           // Score based on tags
-          if (docData && docData.tags.length > 0) {
-            const tagMatches = docData.tags.filter(tag => 
-              questionWords.some(word => tag.toLowerCase().includes(word))
-            );
-            score += tagMatches.length * 10; // High weight for tag matches
+          if (docData && docData.tags && docData.tags.length > 0) {
+            docData.tags.forEach(tag => {
+              const tagLower = tag.toLowerCase();
+              // Direct tag match with question
+              if (expandedArray.some(term => tagLower.includes(term) || term.includes(tagLower))) {
+                score += 20;
+              }
+              // Special boost for Urolitíase tag when asking about stones/calculi
+              if ((isOxalateQuestion || isUrolithQuestion || isStruviteQuestion) && 
+                  (tagLower.includes('urolitíase') || tagLower.includes('urolithiasis') || tagLower.includes('urolith'))) {
+                score += 25;
+              }
+            });
           }
           
-          // Score based on filename
-          const filenameMatches = questionWords.filter(word => nameLower.includes(word));
-          score += filenameMatches.length * 5; // Medium weight for filename matches
-          
-          // Special boost for known important terms
-          const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox'];
-          const canineTerms = ['canine', 'canino', 'cão', 'cao', 'cães', 'caes', 'dog', 'dogs'];
-          
-          const hasOxalate = oxalateTerms.some(t => qLower.includes(t));
-          const isDogContext = canineTerms.some(t => qLower.includes(t));
-          
-          if (hasOxalate) {
-            const nameHasOxalate = oxalateTerms.some(t => nameLower.includes(t));
-            const nameHasCanine = canineTerms.some(t => nameLower.includes(t));
-            const tagsHaveOxalate = docData?.tags.some(tag => 
-              oxalateTerms.some(t => tag.toLowerCase().includes(t))
-            );
-            
-            if (nameHasOxalate || tagsHaveOxalate) score += 20;
-            if (isDogContext && nameHasCanine) score += 15;
+          // Specific content boosts
+          if (isOxalateQuestion) {
+            if (nameLower.includes('oxalate') || originalNameLower.includes('oxalate')) score += 30;
+            if (nameLower.includes('calcium') || originalNameLower.includes('calcium')) score += 20;
+            // ACVIM consensus covers all uroliths including oxalate
+            if (nameLower.includes('acvim') || nameLower.includes('consensus') || 
+                originalNameLower.includes('acvim') || originalNameLower.includes('consensus')) score += 25;
+            // Mineral composition studies
+            if (nameLower.includes('mineral') || nameLower.includes('composition') ||
+                originalNameLower.includes('mineral') || originalNameLower.includes('composition')) score += 20;
           }
           
-          return { id: vf.id, filename: vf.filename, score };
+          if (isStruviteQuestion) {
+            if (nameLower.includes('struvite') || originalNameLower.includes('struvite')) score += 30;
+          }
+          
+          return { id: vf.id, filename: vf.filename, originalName: docData?.original_name || vf.filename, score };
         });
         
-        // Sort by score and take top candidates
+        // Sort by score and take ALL candidates with score > 0 (not just top 5)
         scoredFiles.sort((a, b) => b.score - a.score);
         preferredFileIds = scoredFiles
           .filter(sf => sf.score > 0)
-          .slice(0, 5) // Limit to top 5 most relevant
           .map(sf => sf.id);
         
         if (preferredFileIds.length > 0) {
           console.log(`Prioritizing ${preferredFileIds.length} files based on tags and relevance:`);
-          scoredFiles.filter(sf => sf.score > 0).slice(0, 5).forEach(sf => {
-            console.log(`  - ${sf.filename} (score: ${sf.score})`);
+          scoredFiles.filter(sf => sf.score > 0).forEach(sf => {
+            console.log(`  - ${sf.originalName} (score: ${sf.score})`);
           });
         }
       }
