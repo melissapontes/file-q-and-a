@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, MessageCircle, Loader2, Paperclip, X, FileText } from "lucide-react";
+import { Send, MessageCircle, Loader2, Paperclip, X, FileText, PawPrint } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import oracleAvatar from "@/assets/oracle-avatar.png";
 interface Message {
@@ -234,8 +234,8 @@ const Ask = () => {
                     </div>
 
                     {message.sender === 'user' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-sm sm:text-base">
-                        V
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
+                        <PawPrint size={18} className="text-white sm:w-5 sm:h-5" />
                       </div>
                     )}
                   </div>
