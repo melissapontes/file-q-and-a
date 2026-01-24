@@ -641,20 +641,15 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
           }
         }
         
-        // Build a map from annotation TEXT to file IDs
-        // Each annotation has a 'text' field with the actual marker like 【4:1†source】
-        const annotationTextToFileId = new Map<string, string>();
-        for (const annotation of annotations) {
-          if (annotation?.type === 'file_citation' && annotation.file_citation?.file_id && annotation.text) {
-            annotationTextToFileId.set(annotation.text, annotation.file_citation.file_id);
-          }
+        // Log annotation structure for debugging
+        if (annotations.length > 0) {
+          console.log(`First annotation structure: ${JSON.stringify(annotations[0])}`);
         }
-        console.log(`Mapped ${annotationTextToFileId.size} annotation texts to file IDs`);
         
         // First pass: find all unique file IDs in order of appearance in text
         const citationMarkersInOrder: string[] = [];
         
-        // Process annotations in the order they appear in the text
+        // Process annotations in the order they appear in the text (by start_index)
         const sortedAnnotations = [...annotations]
           .filter(a => a.type === 'file_citation' && a.file_citation?.file_id)
           .sort((a, b) => (a.start_index || 0) - (b.start_index || 0));
@@ -672,18 +667,22 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
           fileIdToNumber.set(fileId, index + 1);
         });
         console.log(`References in order of appearance: ${citationMarkersInOrder.length}`);
+        console.log(`Unique file IDs: ${citationMarkersInOrder.join(', ')}`);
         
-        // Replace each annotation marker with numbered reference
+        // Replace annotations using start_index and end_index (reverse order to preserve indices)
+        // Sort by start_index descending so we replace from end to beginning
+        const annotationsToReplace = [...annotations]
+          .filter(a => a.type === 'file_citation' && a.file_citation?.file_id && 
+                       typeof a.start_index === 'number' && typeof a.end_index === 'number')
+          .sort((a, b) => b.start_index - a.start_index);
+        
         answer = rawAnswer;
-        for (const annotation of annotations) {
-          if (annotation.type === 'file_citation' && annotation.text && annotation.file_citation?.file_id) {
-            const fileId = annotation.file_citation.file_id;
-            const num = fileIdToNumber.get(fileId);
-            if (num) {
-              // Escape special regex characters in the annotation text
-              const escapedText = annotation.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              answer = answer.replace(new RegExp(escapedText, 'g'), ` **[${num}]**`);
-            }
+        for (const annotation of annotationsToReplace) {
+          const fileId = annotation.file_citation.file_id;
+          const num = fileIdToNumber.get(fileId);
+          if (num && typeof annotation.start_index === 'number' && typeof annotation.end_index === 'number') {
+            // Replace the annotation text at the exact position
+            answer = answer.slice(0, annotation.start_index) + ` **[${num}]**` + answer.slice(annotation.end_index);
           }
         }
 
