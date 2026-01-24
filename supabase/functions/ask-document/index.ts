@@ -30,21 +30,15 @@ function formatReferenceTitle(filename: string): string {
   // Clean up the title - keep the full name but make it readable
   name = name
     .replace(/[-_]/g, ' ')           // Replace dashes and underscores with spaces
-    .replace(/\s*\(\d+\)\s*/g, ' ')  // Remove version numbers like (1), (2)
+    .replace(/\s*\(\d+\)\s*$/g, '')  // Remove ONLY trailing version numbers like (1), (2) at end
     .replace(/\s+/g, ' ')            // Normalize multiple spaces
     .trim();
   
-  // Remove duplicate year occurrences and trailing numbers
-  if (year) {
-    // Remove year from title to avoid duplication, then add it at the end
-    name = name.replace(new RegExp(`\\s*${year}\\s*`, 'g'), ' ').trim();
-  }
+  // If the name is too short (like "JVIM 38 878"), it's likely a journal reference - keep as is with more context
+  // Don't remove the numbers if they seem to be part of the citation reference
   
-  // Remove trailing standalone numbers
-  name = name.replace(/\s+\d+\s*$/, '').trim();
-  
-  // Format as "Full Article Title (Year)" if year found
-  if (year) {
+  // Format as "Full Article Title (Year)" if year found, otherwise just the cleaned name
+  if (year && !name.includes(year)) {
     return `${name} (${year})`;
   }
   
@@ -548,29 +542,39 @@ REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agru
         const annotations = textContent.text.annotations || [];
         console.log(`Found ${annotations.length} annotations in response`);
         
-        // Build a map of file IDs to filenames
+        // Build a map of file IDs to filenames (prefer original_name from Supabase)
         const citationMap = new Map<string, string>();
         
         for (const annotation of annotations) {
           if (annotation.type === 'file_citation') {
             const fileId = annotation.file_citation?.file_id;
             if (fileId && !citationMap.has(fileId)) {
-              try {
-                const fileResponse = await fetch(`https://api.openai.com/v1/files/${fileId}`, {
-                  headers: {
-                    'Authorization': `Bearer ${openaiApiKey}`,
-                  },
-                });
-                
-                if (fileResponse.ok) {
-                  const fileData = await fileResponse.json();
-                  const filename = fileData.filename || fileId;
-                  citationMap.set(fileId, filename);
-                  console.log(`Reference found: ${filename}`);
+              // First, try to find the original_name from Supabase documents
+              const docFromSupabase = documentsWithTags.find(d => d.openai_file_id === fileId);
+              
+              if (docFromSupabase && docFromSupabase.original_name) {
+                // Use the original name from Supabase (full article title)
+                citationMap.set(fileId, docFromSupabase.original_name);
+                console.log(`Reference found from Supabase: ${docFromSupabase.original_name}`);
+              } else {
+                // Fallback to fetching from OpenAI
+                try {
+                  const fileResponse = await fetch(`https://api.openai.com/v1/files/${fileId}`, {
+                    headers: {
+                      'Authorization': `Bearer ${openaiApiKey}`,
+                    },
+                  });
+                  
+                  if (fileResponse.ok) {
+                    const fileData = await fileResponse.json();
+                    const filename = fileData.filename || fileId;
+                    citationMap.set(fileId, filename);
+                    console.log(`Reference found from OpenAI: ${filename}`);
+                  }
+                } catch (e) {
+                  console.error(`Error fetching file details for ${fileId}:`, e);
+                  citationMap.set(fileId, fileId);
                 }
-              } catch (e) {
-                console.error(`Error fetching file details for ${fileId}:`, e);
-                citationMap.set(fileId, fileId);
               }
             }
           }
