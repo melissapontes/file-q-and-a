@@ -218,10 +218,10 @@ const Ask = () => {
                               Referência{message.references.length > 1 ? 's' : ''}:
                             </span>
                           </div>
-                          <div className="space-y-1 pl-5">
+                          <div className="space-y-1">
                             {message.references.map((ref, idx) => (
                               <p key={idx} className="text-sm text-muted-foreground">
-                                • {ref}
+                                {ref}
                               </p>
                             ))}
                           </div>
