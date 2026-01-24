@@ -6,7 +6,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to format reference titles as "Título (Ano)"
+// Helper function to format reference titles - keeps full article name with year
 function formatReferenceTitle(filename: string): string {
   // Remove file extension
   let name = filename.replace(/\.(pdf|txt|md|docx)$/i, '');
@@ -27,17 +27,24 @@ function formatReferenceTitle(filename: string): string {
     }
   }
   
-  // Clean up the title
-  // Remove common prefixes/suffixes and clean separators
+  // Clean up the title - keep the full name but make it readable
   name = name
     .replace(/[-_]/g, ' ')           // Replace dashes and underscores with spaces
+    .replace(/\s*\(\d+\)\s*/g, ' ')  // Remove version numbers like (1), (2)
     .replace(/\s+/g, ' ')            // Normalize multiple spaces
     .trim();
   
-  // If we found a year, format as "Title (Year)"
+  // Remove duplicate year occurrences and trailing numbers
   if (year) {
-    // Remove the year from the title if it's there
+    // Remove year from title to avoid duplication, then add it at the end
     name = name.replace(new RegExp(`\\s*${year}\\s*`, 'g'), ' ').trim();
+  }
+  
+  // Remove trailing standalone numbers
+  name = name.replace(/\s+\d+\s*$/, '').trim();
+  
+  // Format as "Full Article Title (Year)" if year found
+  if (year) {
     return `${name} (${year})`;
   }
   
