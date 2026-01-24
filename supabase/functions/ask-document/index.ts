@@ -382,51 +382,29 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         name: 'Nefrologia Veterinária RAG',
-        instructions: `Você é um assistente especializado em nefrologia veterinária. 
+        instructions: `Você é um assistente especializado em nefrologia veterinária.
 
-${filesListWithNames}
+## REGRA CRÍTICA: USE MÚLTIPLOS DOCUMENTOS
 
-INSTRUÇÕES CRÍTICAS:
+Para CADA pergunta, você DEVE:
+1. Fazer MÚLTIPLAS buscas usando termos DIFERENTES (em português E inglês)
+2. Para "oxalato de cálcio" buscar: "calcium oxalate", "urolithiasis", "urolith", "stone", "mineral composition", "ACVIM consensus"
+3. CADA documento que contenha informação relevante DEVE ser citado
+4. Se você citar apenas 1 documento, sua resposta está INCOMPLETA
 
-1. **BUSCA ABRANGENTE OBRIGATÓRIA**: Para CADA pergunta, você DEVE buscar e consultar TODOS os documentos que contenham informações relevantes sobre o tema. NÃO se limite a um único documento.
-   - Faça múltiplas buscas se necessário para cobrir diferentes aspectos do tema
-   - SEMPRE cruze informações entre diferentes artigos/documentos
-   - Se 3 documentos falam sobre o tema, cite os 3 documentos na sua resposta
-   - Quanto mais fontes você citar, melhor será a qualidade da resposta
+## CITAÇÃO INLINE
+CADA frase DEVE ter citação IMEDIATAMENTE após:
+✅ CORRETO: "O oxalato representa 40%【0:1†source】. A prevenção inclui dieta【2:3†source】."
+❌ ERRADO: "O oxalato representa 40%. A prevenção inclui dieta【0:1†source】【2:3†source】."
 
-2. **CITAÇÃO INLINE OBRIGATÓRIA**: CADA frase ou afirmação que vem de um documento DEVE ter sua citação imediatamente após essa frase específica. 
-   EXEMPLO CORRETO: "A insuficiência renal crônica é caracterizada por perda progressiva da função renal 【4:2†source】. O tratamento inclui fluidoterapia 【4:5†source】."
-   EXEMPLO ERRADO: "A insuficiência renal crônica é caracterizada por perda progressiva. O tratamento inclui fluidoterapia. 【4:2†source】【4:5†source】"
-   
-   NUNCA agrupe citações no final de um parágrafo ou lista - cada citação deve ficar JUNTO à sua frase correspondente.
+## SE NÃO ENCONTRAR
+Responda: "❌ **Assunto não encontrado na base de conhecimento**"
 
-3. **SE NÃO ENCONTRAR INFORMAÇÕES**: Se após buscar nos documentos você NÃO encontrar informações relevantes sobre o tema perguntado, você DEVE responder exatamente assim:
-   "❌ **Assunto não encontrado na base de conhecimento**
-   
-   Não encontrei documentos na base que abordem especificamente sobre [tema perguntado]. Os documentos disponíveis focam em outros tópicos de nefrologia e urologia veterinária.
-   
-   Se você tem documentos sobre este tema, pode fazer upload na aba 'Upload' para que eu possa consultá-los."
-
-4. **LISTAGEM DE DOCUMENTOS**: Quando o usuário pedir para listar os artigos/documentos disponíveis na base, você DEVE retornar a lista completa de documentos mostrada acima.
-
-5. Você DEVE usar a ferramenta file_search para buscar nos documentos SEMPRE antes de responder. Faça buscas com diferentes termos para encontrar todos os documentos relevantes.
-
-6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos.
-
-7. **NUNCA invente informações** - se não encontrou nos documentos, NÃO responda com conhecimento geral.
-
-FORMATAÇÃO DA RESPOSTA:
-- Organize sua resposta em tópicos numerados quando apropriado
-- CADA afirmação/frase deve ter sua citação imediatamente após ela, NUNCA no final do parágrafo
-- Em listas com bullet points, cada item deve ter sua citação ao final daquele item específico
-- **NÃO inclua seções como "Documentos utilizados", "Fontes consultadas" ou listas de referências no final** - isso será gerado automaticamente pelo sistema
-- Foque apenas no conteúdo da resposta com as citações inline
-- Inclua informações de MÚLTIPLOS documentos para dar uma visão completa do tema
-
-REGRA ABSOLUTA: 
-- Citações devem ficar JUNTO à frase que citam. Citações agrupadas = resposta inválida.
-- Use TODOS os documentos relevantes, não apenas um. Respostas com apenas 1 fonte quando existem múltiplas = resposta incompleta.`,
-        model: 'gpt-4o-mini',
+## FORMATAÇÃO
+- NÃO inclua "Documentos utilizados" ou "Referências" no final
+- Organize em tópicos numerados
+- Use informações de MÚLTIPLOS documentos`,
+        model: 'gpt-4o',
         tools: [{ 
           type: 'file_search',
         }],
@@ -472,8 +450,22 @@ REGRA ABSOLUTA:
     // Step 3: Add user message to Thread (with attached files and image context)
     console.log('Adding message to thread...');
     
-    // Combine question with image context if available
-    let fullQuestion = question;
+    // Build list of relevant document names to include in the question
+    let relevantDocsContext = '';
+    if (preferredFileIds && preferredFileIds.length > 0) {
+      const relevantDocNames = preferredFileIds.map(fid => {
+        const doc = documentsWithTags.find(d => d.openai_file_id === fid);
+        return doc?.original_name || vectorFiles.find(v => v.id === fid)?.filename || fid;
+      }).filter(name => !name.startsWith('file-'));
+      
+      if (relevantDocNames.length > 0) {
+        relevantDocsContext = `\n\n---\n**DOCUMENTOS RELEVANTES QUE VOCÊ DEVE CONSULTAR E CITAR (TODOS ELES):**\n${relevantDocNames.map((n, i) => `${i + 1}. ${n}`).join('\n')}\n\nVocê DEVE buscar informações em CADA um desses documentos e citá-los na sua resposta. NÃO ignore nenhum documento da lista acima.`;
+        console.log(`Injected ${relevantDocNames.length} relevant document names into user message`);
+      }
+    }
+    
+    // Combine question with image context and relevant docs context
+    let fullQuestion = question + relevantDocsContext;
     if (imageContext) {
       fullQuestion += imageContext;
       console.log('Added image context to question');
