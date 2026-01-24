@@ -641,24 +641,26 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
           }
         }
         
-        // Build a map from annotation index to file IDs
-        // OpenAI uses patterns like 【0:1†source】 where the first number is annotation index
-        const annotationToFileId = new Map<number, string>();
-        for (let i = 0; i < annotations.length; i++) {
-          if (annotations[i]?.type === 'file_citation' && annotations[i].file_citation?.file_id) {
-            annotationToFileId.set(i, annotations[i].file_citation.file_id);
+        // Build a map from annotation TEXT to file IDs
+        // Each annotation has a 'text' field with the actual marker like 【4:1†source】
+        const annotationTextToFileId = new Map<string, string>();
+        for (const annotation of annotations) {
+          if (annotation?.type === 'file_citation' && annotation.file_citation?.file_id && annotation.text) {
+            annotationTextToFileId.set(annotation.text, annotation.file_citation.file_id);
           }
         }
-        console.log(`Mapped ${annotationToFileId.size} annotations to file IDs`);
+        console.log(`Mapped ${annotationTextToFileId.size} annotation texts to file IDs`);
         
-        // First pass: find all citation markers in order of appearance in text
-        // This ensures [1] is the FIRST reference that appears in the text
+        // First pass: find all unique file IDs in order of appearance in text
         const citationMarkersInOrder: string[] = [];
-        const markerRegex = /【(\d+):(\d+)†[^】]*】/g;
-        let markerMatch;
-        while ((markerMatch = markerRegex.exec(rawAnswer)) !== null) {
-          const annIdx = parseInt(markerMatch[1]);
-          const fileId = annotationToFileId.get(annIdx);
+        
+        // Process annotations in the order they appear in the text
+        const sortedAnnotations = [...annotations]
+          .filter(a => a.type === 'file_citation' && a.file_citation?.file_id)
+          .sort((a, b) => (a.start_index || 0) - (b.start_index || 0));
+        
+        for (const annotation of sortedAnnotations) {
+          const fileId = annotation.file_citation?.file_id;
           if (fileId && !citationMarkersInOrder.includes(fileId)) {
             citationMarkersInOrder.push(fileId);
           }
@@ -671,21 +673,19 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
         });
         console.log(`References in order of appearance: ${citationMarkersInOrder.length}`);
         
-        // Replace ALL citation markers with numbered references
-        answer = rawAnswer.replace(/【(\d+):(\d+)†[^】]*】/g, (match: string, annIdx: string) => {
-          const annotationIndex = parseInt(annIdx);
-          const fileId = annotationToFileId.get(annotationIndex);
-          
-          if (fileId) {
+        // Replace each annotation marker with numbered reference
+        answer = rawAnswer;
+        for (const annotation of annotations) {
+          if (annotation.type === 'file_citation' && annotation.text && annotation.file_citation?.file_id) {
+            const fileId = annotation.file_citation.file_id;
             const num = fileIdToNumber.get(fileId);
             if (num) {
-              return ` **[${num}]**`;
+              // Escape special regex characters in the annotation text
+              const escapedText = annotation.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              answer = answer.replace(new RegExp(escapedText, 'g'), ` **[${num}]**`);
             }
           }
-          
-          console.log(`Could not find annotation ${annotationIndex}`);
-          return '';
-        });
+        }
 
         // Remove "Documentos utilizados" section and similar patterns that the AI might add
         answer = answer
