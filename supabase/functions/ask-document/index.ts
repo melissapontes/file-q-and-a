@@ -334,7 +334,11 @@ ${filesListWithNames}
 
 INSTRUÇÕES CRÍTICAS:
 
-1. **CITAÇÃO OBRIGATÓRIA**: TODA resposta DEVE incluir citações inline dos documentos consultados usando os marcadores automáticos (ex: 【4:2†source】). Se você usar qualquer informação de um documento, DEVE incluir a citação correspondente.
+1. **CITAÇÃO INLINE OBRIGATÓRIA**: CADA frase ou afirmação que vem de um documento DEVE ter sua citação imediatamente após essa frase específica. 
+   EXEMPLO CORRETO: "A insuficiência renal crônica é caracterizada por perda progressiva da função renal 【4:2†source】. O tratamento inclui fluidoterapia 【4:5†source】."
+   EXEMPLO ERRADO: "A insuficiência renal crônica é caracterizada por perda progressiva. O tratamento inclui fluidoterapia. 【4:2†source】【4:5†source】"
+   
+   NUNCA agrupe citações no final de um parágrafo ou lista - cada citação deve ficar JUNTO à sua frase correspondente.
 
 2. **SE NÃO ENCONTRAR INFORMAÇÕES**: Se após buscar nos documentos você NÃO encontrar informações relevantes sobre o tema perguntado, você DEVE responder exatamente assim:
    "❌ **Assunto não encontrado na base de conhecimento**
@@ -353,11 +357,12 @@ INSTRUÇÕES CRÍTICAS:
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize sua resposta em tópicos numerados quando apropriado
-- As citações DEVEM aparecer inline (ex: 【4:2†source】) - NUNCA omita as citações
+- CADA afirmação/frase deve ter sua citação imediatamente após ela, NUNCA no final do parágrafo
+- Em listas com bullet points, cada item deve ter sua citação ao final daquele item específico
 - **NÃO inclua seções como "Documentos utilizados", "Fontes consultadas" ou listas de referências no final** - isso será gerado automaticamente pelo sistema
 - Foque apenas no conteúdo da resposta com as citações inline
 
-REGRA ABSOLUTA: Sem citações = resposta inválida. Sempre cite as fontes ou avise que o assunto não foi encontrado.`,
+REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agrupadas = resposta inválida.`,
         model: 'gpt-4o-mini',
         tools: [{ 
           type: 'file_search',
