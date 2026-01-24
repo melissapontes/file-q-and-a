@@ -326,25 +326,31 @@ serve(async (req) => {
 ${filesListWithNames}
 
 INSTRUÇÕES CRÍTICAS:
-1. **LISTAGEM DE DOCUMENTOS**: Quando o usuário pedir para listar os artigos/documentos disponíveis na base, você DEVE retornar a lista completa de documentos mostrada acima. Responda listando cada documento com seu nome completo.
 
-2. Você DEVE usar a ferramenta file_search para buscar nos documentos quando precisar de informações específicas.
+1. **CITAÇÃO OBRIGATÓRIA**: TODA resposta DEVE incluir citações inline dos documentos consultados usando os marcadores automáticos (ex: 【4:2†source】). Se você usar qualquer informação de um documento, DEVE incluir a citação correspondente.
 
-3. Quando o usuário pedir para listar documentos sobre um tópico específico (ex: "oxalato de cálcio"), busque APENAS documentos que contenham informações relevantes sobre esse tópico.
+2. **SE NÃO ENCONTRAR INFORMAÇÕES**: Se após buscar nos documentos você NÃO encontrar informações relevantes sobre o tema perguntado, você DEVE responder exatamente assim:
+   "❌ **Assunto não encontrado na base de conhecimento**
+   
+   Não encontrei documentos na base que abordem especificamente sobre [tema perguntado]. Os documentos disponíveis focam em outros tópicos de nefrologia e urologia veterinária.
+   
+   Se você tem documentos sobre este tema, pode fazer upload na aba 'Upload' para que eu possa consultá-los."
 
-4. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações inline.
+3. **LISTAGEM DE DOCUMENTOS**: Quando o usuário pedir para listar os artigos/documentos disponíveis na base, você DEVE retornar a lista completa de documentos mostrada acima.
+
+4. Você DEVE usar a ferramenta file_search para buscar nos documentos SEMPRE antes de responder.
 
 5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos.
 
-6. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Avise claramente ao usuário. NÃO invente informações.
+6. **NUNCA invente informações** - se não encontrou nos documentos, NÃO responda com conhecimento geral.
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize sua resposta em tópicos numerados quando apropriado
-- As citações aparecerão automaticamente como marcadores inline (ex: 【4:2†source】) - NÃO remova esses marcadores
+- As citações DEVEM aparecer inline (ex: 【4:2†source】) - NUNCA omita as citações
 - **NÃO inclua seções como "Documentos utilizados", "Fontes consultadas" ou listas de referências no final** - isso será gerado automaticamente pelo sistema
-- Foque apenas no conteúdo da resposta
+- Foque apenas no conteúdo da resposta com as citações inline
 
-IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
+REGRA ABSOLUTA: Sem citações = resposta inválida. Sempre cite as fontes ou avise que o assunto não foi encontrado.`,
         model: 'gpt-4o-mini',
         tools: [{ 
           type: 'file_search',
