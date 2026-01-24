@@ -186,7 +186,7 @@ const Ask = () => {
                       className={`p-3 sm:p-5 rounded-2xl break-words overflow-hidden ${
                         message.sender === 'user'
                           ? 'bg-primary/90 text-primary-foreground max-w-[85%] sm:max-w-[80%]'
-                          : 'bg-secondary/50 flex-1 min-w-0'
+                          : 'bg-[hsl(30,20%,90%)] dark:bg-[hsl(30,15%,25%)] flex-1 min-w-0'
                       }`}
                     >
                       <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">
@@ -242,7 +242,7 @@ const Ask = () => {
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
                       <Brain size={18} className="text-white sm:w-5 sm:h-5" />
                     </div>
-                    <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
+                    <div className="bg-[hsl(30,20%,90%)] dark:bg-[hsl(30,15%,25%)] p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <Loader2 size={16} className="animate-spin flex-shrink-0" />
                         <span className="text-sm sm:text-base text-muted-foreground">
