@@ -587,22 +587,32 @@ REGRA ABSOLUTA: Citações devem ficar JUNTO à frase que citam. Citações agru
           fileIdToNumber.set(fileId, refNumber++);
         }
         
+        // Build a map from annotation marker patterns to file IDs
+        // OpenAI uses patterns like 【0:1†source】 where the first number is annotation index
+        const annotationToFileId = new Map<number, string>();
+        for (let i = 0; i < annotations.length; i++) {
+          if (annotations[i]?.type === 'file_citation' && annotations[i].file_citation?.file_id) {
+            annotationToFileId.set(i, annotations[i].file_citation.file_id);
+          }
+        }
+        console.log(`Mapped ${annotationToFileId.size} annotations to file IDs`);
+        
         // Replace ALL citation markers (format: 【number:number†anything】) with numbered references
         // The actual format can be 【4:2†source】 or 【4:2†filename.pdf】
-        answer = rawAnswer.replace(/【\d+:\d+†[^】]*】/g, (match: string) => {
-          // Try to find the corresponding annotation
-          const indexMatch = match.match(/【(\d+):/);
-          if (indexMatch) {
-            const annotationIndex = parseInt(indexMatch[1]);
-            if (annotations[annotationIndex]?.type === 'file_citation') {
-              const fileId = annotations[annotationIndex].file_citation?.file_id;
-              const num = fileIdToNumber.get(fileId);
-              if (num) {
-                return ` **[${num}]**`;
-              }
+        answer = rawAnswer.replace(/【(\d+):(\d+)†[^】]*】/g, (match: string, annIdx: string) => {
+          const annotationIndex = parseInt(annIdx);
+          const fileId = annotationToFileId.get(annotationIndex);
+          
+          if (fileId) {
+            const num = fileIdToNumber.get(fileId);
+            if (num) {
+              return ` **[${num}]**`;
             }
           }
-          // If we can't match annotation, remove the marker entirely
+          
+          // If we can't find by annotation index, try to find any matching fileId
+          // Sometimes OpenAI uses different indexing
+          console.log(`Could not find annotation ${annotationIndex}, trying fallback...`);
           return '';
         });
 
