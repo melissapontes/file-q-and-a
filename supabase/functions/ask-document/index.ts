@@ -646,8 +646,33 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
           console.log(`First annotation structure: ${JSON.stringify(annotations[0])}`);
         }
         
-        // First pass: find all unique file IDs in order of appearance in text
-        const citationMarkersInOrder: string[] = [];
+        // Helper to normalize document names for deduplication
+        const normalizeDocName = (name: string): string => {
+          return name
+            .replace(/\.(pdf|txt|md|docx)$/i, '')  // Remove extension
+            .replace(/\s*\(\d+\)\s*$/g, '')         // Remove trailing (1), (2), etc.
+            .replace(/[-_]/g, ' ')                   // Normalize separators
+            .replace(/\s+/g, ' ')                    // Normalize spaces
+            .trim()
+            .toLowerCase();
+        };
+        
+        // Build a map from fileId to normalized document name
+        const fileIdToNormalizedName = new Map<string, string>();
+        const normalizedNameToCanonicalFileId = new Map<string, string>();
+        
+        for (const [fileId, filename] of citationMap.entries()) {
+          const normalized = normalizeDocName(filename);
+          fileIdToNormalizedName.set(fileId, normalized);
+          
+          // Keep the first fileId encountered for each normalized name
+          if (!normalizedNameToCanonicalFileId.has(normalized)) {
+            normalizedNameToCanonicalFileId.set(normalized, fileId);
+          }
+        }
+        
+        // First pass: find unique documents (by normalized name) in order of appearance
+        const uniqueNormalizedNames: string[] = [];
         
         // Process annotations in the order they appear in the text (by start_index)
         const sortedAnnotations = [...annotations]
@@ -656,21 +681,33 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
         
         for (const annotation of sortedAnnotations) {
           const fileId = annotation.file_citation?.file_id;
-          if (fileId && !citationMarkersInOrder.includes(fileId)) {
-            citationMarkersInOrder.push(fileId);
+          if (fileId) {
+            const normalized = fileIdToNormalizedName.get(fileId) || fileId;
+            if (!uniqueNormalizedNames.includes(normalized)) {
+              uniqueNormalizedNames.push(normalized);
+            }
           }
         }
         
-        // Create numbered reference list based on order of first appearance in text
-        const fileIdToNumber = new Map<string, number>();
-        citationMarkersInOrder.forEach((fileId, index) => {
-          fileIdToNumber.set(fileId, index + 1);
+        // Create numbered reference list based on normalized names
+        const normalizedNameToNumber = new Map<string, number>();
+        uniqueNormalizedNames.forEach((normalized, index) => {
+          normalizedNameToNumber.set(normalized, index + 1);
         });
-        console.log(`References in order of appearance: ${citationMarkersInOrder.length}`);
-        console.log(`Unique file IDs: ${citationMarkersInOrder.join(', ')}`);
+        
+        // Map each fileId to its reference number (through normalized name)
+        const fileIdToNumber = new Map<string, number>();
+        for (const [fileId, normalized] of fileIdToNormalizedName.entries()) {
+          const num = normalizedNameToNumber.get(normalized);
+          if (num) {
+            fileIdToNumber.set(fileId, num);
+          }
+        }
+        
+        console.log(`References in order of appearance: ${uniqueNormalizedNames.length}`);
+        console.log(`Unique documents (deduplicated): ${uniqueNormalizedNames.join(', ')}`);
         
         // Replace annotations using start_index and end_index (reverse order to preserve indices)
-        // Sort by start_index descending so we replace from end to beginning
         const annotationsToReplace = [...annotations]
           .filter(a => a.type === 'file_citation' && a.file_citation?.file_id && 
                        typeof a.start_index === 'number' && typeof a.end_index === 'number')
@@ -681,12 +718,11 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
           const fileId = annotation.file_citation.file_id;
           const num = fileIdToNumber.get(fileId);
           if (num && typeof annotation.start_index === 'number' && typeof annotation.end_index === 'number') {
-            // Replace the annotation text at the exact position
             answer = answer.slice(0, annotation.start_index) + ` **[${num}]**` + answer.slice(annotation.end_index);
           }
         }
 
-        // Remove "Documentos utilizados" section and similar patterns that the AI might add
+        // Remove "Documentos utilizados" section and similar patterns
         answer = answer
           .replace(/\n*(\*\*)?Documentos? utilizados?(\*\*)?:?\n[\s\S]*?(?=\n\n|$)/gi, '')
           .replace(/\n*(\*\*)?Fontes? consultadas?(\*\*)?:?\n[\s\S]*?(?=\n\n|$)/gi, '')
@@ -694,9 +730,10 @@ Responda: "❌ **Assunto não encontrado na base de conhecimento**"
           .replace(/\n*-\s*"[^"]+\.(pdf|txt|docx|md)"\s*$/gim, '')
           .trim();
 
-        // Format references as numbered list in order of first appearance
-        references = citationMarkersInOrder.map((fileId, index) => {
-          const filename = citationMap.get(fileId) || fileId;
+        // Format references - use canonical fileId for each normalized name
+        references = uniqueNormalizedNames.map((normalized, index) => {
+          const canonicalFileId = normalizedNameToCanonicalFileId.get(normalized);
+          const filename = canonicalFileId ? (citationMap.get(canonicalFileId) || canonicalFileId) : normalized;
           const cleanName = formatReferenceTitle(filename);
           return `[${index + 1}] ${cleanName}`;
         });
