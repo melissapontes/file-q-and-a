@@ -120,12 +120,20 @@ serve(async (req) => {
     let uploadMimeType: string;
     
     if (isExcel) {
-      console.log('Converting Excel to text...');
-      const textContent = excelToText(fileBuffer, file.name);
-      uploadBlob = new Blob([textContent], { type: 'text/plain' });
-      uploadFilename = file.name.replace(/\.(xlsx|xls)$/i, '.txt');
-      uploadMimeType = 'text/plain';
-      console.log('Excel converted, new filename:', uploadFilename);
+      console.log('Converting Excel to text format for Vector Store compatibility...');
+      try {
+        const textContent = excelToText(fileBuffer, file.name);
+        uploadBlob = new Blob([textContent], { type: 'text/plain' });
+        uploadFilename = file.name.replace(/\.(xlsx|xls)$/i, '.txt');
+        uploadMimeType = 'text/plain';
+        console.log('Excel converted successfully, new filename:', uploadFilename, 'size:', textContent.length);
+      } catch (convErr) {
+        console.error('Excel conversion error:', convErr);
+        return new Response(
+          JSON.stringify({ error: `Failed to convert Excel: ${convErr}`, success: false }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     } else {
       uploadBlob = new Blob([fileBuffer], { type: file.type });
       uploadFilename = file.name;
