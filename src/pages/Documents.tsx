@@ -264,7 +264,7 @@ const Documents = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-secondary px-3 sm:px-6 py-3 sm:py-6">
+    <div className="min-h-screen bg-gradient-secondary p-6">
       {/* Hidden file input for re-upload */}
       <input
         type="file"
@@ -274,21 +274,21 @@ const Documents = () => {
         className="hidden"
       />
       <div className="container mx-auto max-w-4xl">
-        <div className="text-center mb-4 sm:mb-8">
-          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-4 bg-gradient-primary bg-clip-text text-transparent">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
             Gerenciar Documentos
           </h1>
-          <p className="text-muted-foreground text-sm sm:text-lg hidden sm:block">
+          <p className="text-muted-foreground text-lg">
             Visualize e organize seus documentos com tags
           </p>
         </div>
 
         {/* Filtro por Tags */}
         {allTags.length > 0 && (
-          <Card className="p-3 sm:p-4 mb-3 sm:mb-4 bg-glass border-glass backdrop-blur-xl shadow-soft">
-            <div className="flex items-center gap-2 mb-2 sm:mb-3">
-              <Filter size={16} className="sm:w-[18px] sm:h-[18px] text-primary" />
-              <span className="font-medium text-foreground text-sm sm:text-base">Filtrar por tags:</span>
+          <Card className="p-4 mb-4 bg-glass border-glass backdrop-blur-xl shadow-soft">
+            <div className="flex items-center gap-2 mb-3">
+              <Filter size={18} className="text-primary" />
+              <span className="font-medium text-foreground">Filtrar por tags:</span>
               {selectedTags.length > 0 && (
                 <Button
                   variant="ghost"
@@ -328,7 +328,7 @@ const Documents = () => {
           </Card>
         )}
 
-        <Card className="p-3 sm:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
+        <Card className="p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
           {filteredDocuments.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="mx-auto mb-4 w-16 h-16 text-muted-foreground opacity-50" />
