@@ -1,11 +1,26 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Convert Excel to CSV text
+function excelToText(buffer: ArrayBuffer, filename: string): string {
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+  let allText = `# ${filename}\n\n`;
+  
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    allText += `## Sheet: ${sheetName}\n\n${csv}\n\n`;
+  }
+  
+  return allText;
+}
 
 serve(async (req) => {
   console.log('Upload document function called');
@@ -34,7 +49,6 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Try to get user from auth header (optional - allows anonymous uploads)
-    // Fixed UUID for anonymous users
     const ANONYMOUS_USER_ID = '00000000-0000-0000-0000-000000000000';
     let userId = ANONYMOUS_USER_ID;
     const authHeader = req.headers.get('Authorization');
@@ -95,12 +109,31 @@ serve(async (req) => {
 
     console.log('Processing file:', file.name, 'Size:', file.size, 'Type:', file.type);
 
-    // Upload file to OpenAI
     const fileBuffer = await file.arrayBuffer();
-    const fileBlob = new Blob([fileBuffer], { type: file.type });
+    
+    // Check if Excel file - convert to text
+    const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                    file.type === 'application/vnd.ms-excel';
+    
+    let uploadBlob: Blob;
+    let uploadFilename: string;
+    let uploadMimeType: string;
+    
+    if (isExcel) {
+      console.log('Converting Excel to text...');
+      const textContent = excelToText(fileBuffer, file.name);
+      uploadBlob = new Blob([textContent], { type: 'text/plain' });
+      uploadFilename = file.name.replace(/\.(xlsx|xls)$/i, '.txt');
+      uploadMimeType = 'text/plain';
+      console.log('Excel converted, new filename:', uploadFilename);
+    } else {
+      uploadBlob = new Blob([fileBuffer], { type: file.type });
+      uploadFilename = file.name;
+      uploadMimeType = file.type;
+    }
 
     const formDataOpenAI = new FormData();
-    formDataOpenAI.append('file', fileBlob, file.name);
+    formDataOpenAI.append('file', uploadBlob, uploadFilename);
     formDataOpenAI.append('purpose', 'assistants');
 
     console.log('Uploading to OpenAI...');
@@ -136,7 +169,6 @@ serve(async (req) => {
     if (!vectorStoreResponse.ok) {
       const errorText = await vectorStoreResponse.text();
       console.error('Vector store upload error:', errorText);
-      // Cleanup OpenAI file on failure
       await fetch(`https://api.openai.com/v1/files/${openaiFileData.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${openaiApiKey}` },
@@ -150,7 +182,7 @@ serve(async (req) => {
     const vectorStoreData = await vectorStoreResponse.json();
     console.log('File added to vector store:', vectorStoreData.id);
 
-    // Create document record in database (no more storage_path)
+    // Create document record - store original file info
     const { data: documentRecord, error: dbError } = await supabase
       .from('documents')
       .insert({
@@ -159,7 +191,7 @@ serve(async (req) => {
         original_name: file.name,
         file_size: file.size,
         mime_type: file.type,
-        storage_path: null, // No longer storing files in Supabase
+        storage_path: null,
         processing_status: 'completed',
         openai_file_id: openaiFileData.id,
         vector_store_file_id: vectorStoreData.id,
@@ -170,7 +202,6 @@ serve(async (req) => {
 
     if (dbError) {
       console.error('Database error:', dbError);
-      // Cleanup OpenAI resources on failure
       await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${vectorStoreData.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${openaiApiKey}` },
