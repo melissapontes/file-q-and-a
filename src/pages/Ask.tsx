@@ -156,20 +156,20 @@ const Ask = () => {
 
 
   return (
-    <div className="bg-gradient-secondary p-2 sm:p-4 md:p-6 pb-8">
-      <div className="container mx-auto max-w-4xl">
-        <div className="text-center mb-3 sm:mb-6 pt-4 sm:pt-8">
-          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
+    <div className="bg-gradient-secondary px-2 sm:px-4 md:px-6 py-2 sm:py-4 flex-1 flex flex-col min-h-0">
+      <div className="container mx-auto max-w-4xl flex flex-col flex-1 min-h-0">
+        <div className="text-center mb-2 sm:mb-4 pt-2 sm:pt-6">
+          <h1 className="text-xl sm:text-4xl font-bold mb-0.5 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
             Pergunte ao RAG
           </h1>
-          <p className="text-xs sm:text-base text-muted-foreground">
+          <p className="text-xs sm:text-base text-muted-foreground hidden sm:block">
             Faça perguntas sobre seus documentos e obtenha respostas inteligentes
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 sm:gap-6">
-          <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft overflow-hidden">
-            <ScrollArea className="h-[50vh] sm:h-[55vh] pr-2 sm:pr-4">
+        <div className="flex flex-col gap-2 sm:gap-4 flex-1 min-h-0">
+          <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft overflow-hidden flex-1 min-h-0 flex flex-col">
+            <ScrollArea className="flex-1 min-h-0 pr-2 sm:pr-4">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div

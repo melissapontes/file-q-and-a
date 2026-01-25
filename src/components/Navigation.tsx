@@ -16,14 +16,14 @@ const Navigation = () => {
   ];
 
   return (
-    <nav className="bg-glass border-b border-glass backdrop-blur-xl">
-      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
-        <div className="flex items-center justify-between gap-2">
-          <Link to="/" className="flex items-center">
-            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain" />
+    <nav className="bg-glass border-b border-glass backdrop-blur-xl flex-shrink-0">
+      <div className="container mx-auto px-2 sm:px-4 py-1.5 sm:py-3">
+        <div className="flex items-center justify-between gap-1 sm:gap-2">
+          <Link to="/" className="flex items-center flex-shrink-0">
+            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-8 sm:h-12 w-auto object-contain" />
           </Link>
           
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-0.5 sm:gap-2">
             {navItems.map(({ path, label, icon: Icon }) => {
               const isActive = location.pathname === path;
               const isAskPage = path === "/ask";
@@ -39,10 +39,10 @@ const Navigation = () => {
                   variant={variant}
                   size="sm"
                   asChild
-                  className={shouldHighlight ? "shadow-glow" : ""}
+                  className={`h-8 sm:h-9 px-2 sm:px-3 ${shouldHighlight ? "shadow-glow" : ""}`}
                 >
-                  <Link to={path} className="flex items-center gap-1 sm:gap-2">
-                    <Icon size={16} />
+                  <Link to={path} className="flex items-center gap-0.5 sm:gap-2">
+                    <Icon size={14} className="sm:w-4 sm:h-4" />
                     <span className="hidden sm:inline">{label}</span>
                   </Link>
                 </Button>
