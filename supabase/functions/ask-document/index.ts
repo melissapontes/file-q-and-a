@@ -554,13 +554,14 @@ REGRAS OBRIGATÓRIAS:
     const run = await runResponse.json();
     console.log("Run started:", run.id);
 
-    // Step 5: Poll for completion
+    // Step 5: Poll for completion with extended timeout
     let runStatus = run.status;
     let attempts = 0;
-    const maxAttempts = 30; // 30 seconds max
+    const maxAttempts = 60; // 120 seconds max (60 * 2s)
+    const pollInterval = 2000; // Poll every 2 seconds
 
-    while (runStatus !== "completed" && runStatus !== "failed" && attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
+    while (runStatus !== "completed" && runStatus !== "failed" && runStatus !== "cancelled" && attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
         headers: {
@@ -578,7 +579,11 @@ REGRAS OBRIGATÓRIAS:
       const statusData = await statusResponse.json();
       runStatus = statusData.status;
       attempts++;
-      console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
+      
+      // Log less frequently to reduce noise
+      if (attempts % 5 === 0 || runStatus === "completed" || runStatus === "failed") {
+        console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
+      }
     }
 
     if (runStatus === "failed") {
