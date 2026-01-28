@@ -409,16 +409,7 @@ serve(async (req) => {
 
 REGRAS OBRIGATÓRIAS:
 
-1. TRADUÇÃO INTERNA: Antes de fazer a busca, traduza mentalmente a pergunta do usuário para INGLÊS. Muitos documentos científicos estão em inglês. Use AMBOS os termos (português e inglês) nas suas buscas.
-   - Exemplos de tradução:
-     - "cálculo de oxalato de cálcio" → "calcium oxalate stone/urolith"
-     - "urolitíase" → "urolithiasis"
-     - "estruvita" → "struvite"
-     - "doença renal crônica" → "chronic kidney disease"
-     - "tratamento" → "treatment/management"
-     - "prevenção" → "prevention"
-
-2. USE A FERRAMENTA file_search para buscar informações nos documentos ANTES de responder. Faça buscas com termos em INGLÊS E PORTUGUÊS para encontrar todos os documentos relevantes.
+1. USE A FERRAMENTA file_search para buscar informações nos documentos ANTES de responder. Faça buscas com termos em INGLÊS E PORTUGUÊS para encontrar todos os documentos relevantes.
 
 3. CITE TODAS AS FONTES: Cada afirmação deve ter uma citação inline do documento de origem.
 
@@ -426,9 +417,7 @@ REGRAS OBRIGATÓRIAS:
 
 5. Se não encontrar informações nos documentos, responda: "❌ Assunto não encontrado na base de conhecimento"
 
-6. NÃO adicione seções de "Referências" ou "Documentos utilizados" no final - o sistema faz isso automaticamente.
-
-7. Responda em português brasileiro.`,
+6. Responda em português brasileiro.`,
         model: "gpt-4o-mini",
         tools: [
           {
@@ -588,7 +577,7 @@ REGRAS OBRIGATÓRIAS:
       const statusData = await statusResponse.json();
       runStatus = statusData.status;
       attempts++;
-      
+
       // Log less frequently to reduce noise
       if (attempts % 5 === 0 || runStatus === "completed" || runStatus === "failed") {
         console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
