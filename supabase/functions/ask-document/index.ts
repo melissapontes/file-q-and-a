@@ -213,6 +213,8 @@ serve(async (req) => {
     const vectorFiles: { id: string; filename: string }[] = [];
     // Files we want to prioritize for the current question (by heuristics)
     let preferredFileIds: string[] = [];
+    // Track if user requested a specific document by name
+    let specificDocumentRequested: { id: string; filename: string; originalName: string } | null = null;
 
     if (filesResponse.ok) {
       const filesData = await filesResponse.json();
@@ -249,6 +251,51 @@ serve(async (req) => {
 
         // Enhanced heuristic using tags and filename matching with bilingual support
         const qLower = question.toLowerCase();
+
+        // ========== SPECIFIC DOCUMENT DETECTION ==========
+        // Check if user is asking about a SPECIFIC document by name
+        
+        // Patterns that indicate user is asking about a specific document
+        const specificDocPatterns = [
+          /(?:no documento|do documento|no artigo|do artigo|no arquivo|do arquivo)\s+["""]?([^"""\?]+)["""]?/i,
+          /documento\s+["""]?([^"""\?]+)["""]?\s+(?:é|fala|menciona|trata|aborda|diz)/i,
+          /(?:seções|seção|partes|parte)\s+(?:do|no)\s+(?:documento|artigo)\s+["""]?([^"""\?]+)["""]?/i,
+        ];
+        
+        for (const pattern of specificDocPatterns) {
+          const match = question.match(pattern);
+          if (match && match[1]) {
+            const requestedDocName = match[1].trim().toLowerCase();
+            console.log(`Detected specific document request: "${requestedDocName}"`);
+            
+            // Find matching document in vector store
+            for (const vf of vectorFiles) {
+              const docData = documentsWithTags.find((d) => d.openai_file_id === vf.id);
+              const originalNameLower = (docData?.original_name || vf.filename).toLowerCase();
+              const filenameLower = vf.filename.toLowerCase();
+              
+              // Check if the requested name matches this document
+              // Use fuzzy matching - check if most words match
+              const requestedWords = requestedDocName.split(/\s+/).filter(w => w.length > 2);
+              const matchingWords = requestedWords.filter(word => 
+                originalNameLower.includes(word) || filenameLower.includes(word)
+              );
+              
+              // If at least 70% of words match, consider it a match
+              if (matchingWords.length >= requestedWords.length * 0.7) {
+                specificDocumentRequested = {
+                  id: vf.id,
+                  filename: vf.filename,
+                  originalName: docData?.original_name || vf.filename
+                };
+                console.log(`MATCHED to specific document: ${specificDocumentRequested.originalName}`);
+                break;
+              }
+            }
+            
+            if (specificDocumentRequested) break;
+          }
+        }
 
         // Extract potential keywords from the question
         const questionWords = qLower.split(/\s+/).filter((w) => w.length > 3);
@@ -313,81 +360,88 @@ serve(async (req) => {
 
         console.log("Expanded search terms:", Array.from(expandedTerms).join(", "));
 
-        // Score each document based on tag and filename relevance
-        const scoredFiles = vectorFiles.map((vf) => {
-          let score = 0;
-          const nameLower = vf.filename.toLowerCase();
+        // ========== DOCUMENT SELECTION LOGIC ==========
+        // If a specific document was requested, ONLY use that document
+        if (specificDocumentRequested) {
+          preferredFileIds = [specificDocumentRequested.id];
+          console.log(`RESTRICTED to single document: ${specificDocumentRequested.originalName}`);
+        } else {
+          // Score each document based on tag and filename relevance
+          const scoredFiles = vectorFiles.map((vf) => {
+            let score = 0;
+            const nameLower = vf.filename.toLowerCase();
 
-          // Find matching document in Supabase data
-          const docData = documentsWithTags.find((d) => d.openai_file_id === vf.id);
-          const originalNameLower = docData?.original_name?.toLowerCase() || "";
+            // Find matching document in Supabase data
+            const docData = documentsWithTags.find((d) => d.openai_file_id === vf.id);
+            const originalNameLower = docData?.original_name?.toLowerCase() || "";
 
-          // Score based on expanded terms matching filename or original name
-          const expandedArray = Array.from(expandedTerms);
+            // Score based on expanded terms matching filename or original name
+            const expandedArray = Array.from(expandedTerms);
 
-          expandedArray.forEach((term) => {
-            if (nameLower.includes(term)) score += 15;
-            if (originalNameLower.includes(term)) score += 15;
+            expandedArray.forEach((term) => {
+              if (nameLower.includes(term)) score += 15;
+              if (originalNameLower.includes(term)) score += 15;
+            });
+
+            // Score based on tags
+            if (docData && docData.tags && docData.tags.length > 0) {
+              docData.tags.forEach((tag) => {
+                const tagLower = tag.toLowerCase();
+                // Direct tag match with question
+                if (expandedArray.some((term) => tagLower.includes(term) || term.includes(tagLower))) {
+                  score += 20;
+                }
+                // Special boost for Urolitíase tag when asking about stones/calculi
+                if (
+                  (isOxalateQuestion || isUrolithQuestion || isStruviteQuestion) &&
+                  (tagLower.includes("urolitíase") || tagLower.includes("urolithiasis") || tagLower.includes("urolith"))
+                ) {
+                  score += 25;
+                }
+              });
+            }
+
+            // Specific content boosts
+            if (isOxalateQuestion) {
+              if (nameLower.includes("oxalate") || originalNameLower.includes("oxalate")) score += 30;
+              if (nameLower.includes("calcium") || originalNameLower.includes("calcium")) score += 20;
+              // ACVIM consensus covers all uroliths including oxalate
+              if (
+                nameLower.includes("acvim") ||
+                nameLower.includes("consensus") ||
+                originalNameLower.includes("acvim") ||
+                originalNameLower.includes("consensus")
+              )
+                score += 25;
+              // Mineral composition studies
+              if (
+                nameLower.includes("mineral") ||
+                nameLower.includes("composition") ||
+                originalNameLower.includes("mineral") ||
+                originalNameLower.includes("composition")
+              )
+                score += 20;
+            }
+
+            if (isStruviteQuestion) {
+              if (nameLower.includes("struvite") || originalNameLower.includes("struvite")) score += 30;
+            }
+
+            return { id: vf.id, filename: vf.filename, originalName: docData?.original_name || vf.filename, score };
           });
 
-          // Score based on tags
-          if (docData && docData.tags && docData.tags.length > 0) {
-            docData.tags.forEach((tag) => {
-              const tagLower = tag.toLowerCase();
-              // Direct tag match with question
-              if (expandedArray.some((term) => tagLower.includes(term) || term.includes(tagLower))) {
-                score += 20;
-              }
-              // Special boost for Urolitíase tag when asking about stones/calculi
-              if (
-                (isOxalateQuestion || isUrolithQuestion || isStruviteQuestion) &&
-                (tagLower.includes("urolitíase") || tagLower.includes("urolithiasis") || tagLower.includes("urolith"))
-              ) {
-                score += 25;
-              }
-            });
+          // Sort by score and take ALL candidates with score > 0 (not just top 5)
+          scoredFiles.sort((a, b) => b.score - a.score);
+          preferredFileIds = scoredFiles.filter((sf) => sf.score > 0).map((sf) => sf.id);
+
+          if (preferredFileIds.length > 0) {
+            console.log(`Prioritizing ${preferredFileIds.length} files based on tags and relevance:`);
+            scoredFiles
+              .filter((sf) => sf.score > 0)
+              .forEach((sf) => {
+                console.log(`  - ${sf.originalName} (score: ${sf.score})`);
+              });
           }
-
-          // Specific content boosts
-          if (isOxalateQuestion) {
-            if (nameLower.includes("oxalate") || originalNameLower.includes("oxalate")) score += 30;
-            if (nameLower.includes("calcium") || originalNameLower.includes("calcium")) score += 20;
-            // ACVIM consensus covers all uroliths including oxalate
-            if (
-              nameLower.includes("acvim") ||
-              nameLower.includes("consensus") ||
-              originalNameLower.includes("acvim") ||
-              originalNameLower.includes("consensus")
-            )
-              score += 25;
-            // Mineral composition studies
-            if (
-              nameLower.includes("mineral") ||
-              nameLower.includes("composition") ||
-              originalNameLower.includes("mineral") ||
-              originalNameLower.includes("composition")
-            )
-              score += 20;
-          }
-
-          if (isStruviteQuestion) {
-            if (nameLower.includes("struvite") || originalNameLower.includes("struvite")) score += 30;
-          }
-
-          return { id: vf.id, filename: vf.filename, originalName: docData?.original_name || vf.filename, score };
-        });
-
-        // Sort by score and take ALL candidates with score > 0 (not just top 5)
-        scoredFiles.sort((a, b) => b.score - a.score);
-        preferredFileIds = scoredFiles.filter((sf) => sf.score > 0).map((sf) => sf.id);
-
-        if (preferredFileIds.length > 0) {
-          console.log(`Prioritizing ${preferredFileIds.length} files based on tags and relevance:`);
-          scoredFiles
-            .filter((sf) => sf.score > 0)
-            .forEach((sf) => {
-              console.log(`  - ${sf.originalName} (score: ${sf.score})`);
-            });
         }
       }
     } else {
@@ -396,6 +450,48 @@ serve(async (req) => {
 
     // Step 1: Create an Assistant with file_search
     console.log("Creating Assistant...");
+    
+    // Build dynamic instructions based on whether a specific document was requested
+    let assistantInstructions = `Você é um assistente especializado em nefrologia veterinária.
+
+REGRAS OBRIGATÓRIAS:
+
+1. USE A FERRAMENTA file_search para buscar informações nos documentos ANTES de responder. Faça buscas com termos em INGLÊS E PORTUGUÊS para encontrar todos os documentos relevantes.
+
+2. CITE TODAS AS FONTES: Cada afirmação deve ter uma citação inline do documento de origem.
+
+3. Se não encontrar informações nos documentos, responda: "❌ Assunto não encontrado na base de conhecimento"
+
+4. Responda em português brasileiro.`;
+
+    // If a specific document was requested, add strict restriction
+    if (specificDocumentRequested) {
+      assistantInstructions = `Você é um assistente especializado em nefrologia veterinária.
+
+⚠️ RESTRIÇÃO CRÍTICA: O usuário pediu informações de UM DOCUMENTO ESPECÍFICO:
+"${specificDocumentRequested.originalName}"
+
+REGRAS OBRIGATÓRIAS:
+
+1. USE A FERRAMENTA file_search para buscar informações SOMENTE no documento especificado acima.
+
+2. NÃO USE informações de outros documentos. Se encontrar informações em outros artigos, IGNORE-AS.
+
+3. Se a informação NÃO estiver presente no documento específico solicitado, responda: "❌ Esta informação não foi encontrada no documento '${specificDocumentRequested.originalName}'"
+
+4. CITE APENAS o documento solicitado. Cada afirmação deve ter uma citação inline desse documento.
+
+5. Se você citar QUALQUER outro documento que não seja "${specificDocumentRequested.originalName}", isso será considerado um ERRO GRAVE.
+
+6. Responda em português brasileiro.`;
+      
+      console.log(`Using RESTRICTED instructions for single document: ${specificDocumentRequested.originalName}`);
+    } else {
+      assistantInstructions += `
+
+4. USE TODOS OS DOCUMENTOS: Busque em todos os documentos que tenham o assunto pesquisado e referencie todos no texto retornado para o usuário.`;
+    }
+
     const assistantResponse = await fetch("https://api.openai.com/v1/assistants", {
       method: "POST",
       headers: {
@@ -405,19 +501,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         name: "Nefrologia Veterinária RAG",
-        instructions: `Você é um assistente especializado em nefrologia veterinária.
-
-REGRAS OBRIGATÓRIAS:
-
-1. USE A FERRAMENTA file_search para buscar informações nos documentos ANTES de responder. Faça buscas com termos em INGLÊS E PORTUGUÊS para encontrar todos os documentos relevantes.
-
-3. CITE TODAS AS FONTES: Cada afirmação deve ter uma citação inline do documento de origem.
-
-4. USE TODOS OS DOCUMENTOS: Busque em todos os documentos que tenham o assunto pesquisado e referencie todos no texto retornado para o usuário.
-
-5. Se não encontrar informações nos documentos, responda: "❌ Assunto não encontrado na base de conhecimento"
-
-6. Responda em português brasileiro.`,
+        instructions: assistantInstructions,
         model: "gpt-4o-mini",
         tools: [
           {
@@ -467,7 +551,13 @@ REGRAS OBRIGATÓRIAS:
 
     // Build list of relevant document names to include in the question
     let relevantDocsContext = "";
-    if (preferredFileIds && preferredFileIds.length > 0) {
+    
+    // Different context for specific document vs multiple documents
+    if (specificDocumentRequested) {
+      // STRICT: Only reference the specific document
+      relevantDocsContext = `\n\n---\n⚠️ **DOCUMENTO ÚNICO SOLICITADO (USE APENAS ESTE):**\n${specificDocumentRequested.originalName}\n\n**RESTRIÇÃO ABSOLUTA:** Responda APENAS com informações deste documento. NÃO cite outros documentos. Se a informação não estiver NESTE documento específico, diga que não foi encontrada.`;
+      console.log(`Injected SINGLE document restriction: ${specificDocumentRequested.originalName}`);
+    } else if (preferredFileIds && preferredFileIds.length > 0) {
       const relevantDocNames = preferredFileIds
         .map((fid) => {
           const doc = documentsWithTags.find((d) => d.openai_file_id === fid);
