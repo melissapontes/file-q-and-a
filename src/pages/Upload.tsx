@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Upload as UploadIcon, FileText, AlertCircle } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Upload as UploadIcon, FileText, AlertCircle, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 const Upload = () => {
@@ -13,10 +15,18 @@ const Upload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [tags, setTags] = useState<string>('');
   const { toast } = useToast();
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const validFiles = acceptedFiles.filter(file => {
-      const validTypes = ['.pdf', '.txt', '.md', '.docx', '.xlsx', '.xls'];
+      const validTypes = ['.pdf', '.txt', '.md', '.docx'];
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
       return validTypes.includes(extension);
     });
@@ -24,7 +34,7 @@ const Upload = () => {
     if (validFiles.length !== acceptedFiles.length) {
       toast({
         title: "Arquivos inválidos",
-        description: "Apenas arquivos .pdf, .txt, .md, .docx, .xlsx e .xls são permitidos.",
+        description: "Apenas arquivos .pdf, .txt, .md e .docx são permitidos.",
         variant: "destructive",
       });
     }
@@ -39,8 +49,6 @@ const Upload = () => {
       'text/plain': ['.txt'],
       'text/markdown': ['.md'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/vnd.ms-excel': ['.xls'],
     },
   });
 
@@ -75,12 +83,17 @@ const Upload = () => {
         }
 
         const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          navigate("/auth");
+          return;
+        }
 
         const response = await supabase.functions.invoke('upload-document', {
           body: formData,
-          headers: session ? {
+          headers: {
             Authorization: `Bearer ${session.access_token}`,
-          } : undefined,
+          },
         });
 
         if (response.error) {
@@ -110,6 +123,21 @@ const Upload = () => {
       setUploadProgress(0);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-secondary flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-secondary p-6">
@@ -159,7 +187,7 @@ const Upload = () => {
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="Ex: oxalato de cálcio, nefrologia, canino (separados por vírgula)"
-                  className="w-full px-4 py-2 rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-4 py-2 rounded-lg bg-secondary border border-glass focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={uploading}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
@@ -176,7 +204,7 @@ const Upload = () => {
                 {files.map((file, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-3 bg-muted rounded-lg border border-border"
+                    className="flex items-center justify-between p-3 bg-secondary rounded-lg"
                   >
                     <div className="flex items-center gap-3">
                       <FileText size={16} className="text-primary" />

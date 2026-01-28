@@ -3,12 +3,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "./hooks/useAuth";
 import Navigation from "./components/Navigation";
 import Footer from "./components/Footer";
 import Index from "./pages/Index";
 import Upload from "./pages/Upload";
 import Ask from "./pages/Ask";
+import Auth from "./pages/Auth";
 import Documents from "./pages/Documents";
 import NotFound from "./pages/NotFound";
 
@@ -17,7 +18,7 @@ const queryClient = new QueryClient();
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <AuthProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
@@ -30,6 +31,7 @@ const App = () => {
                   <Route path="/upload" element={<Upload />} />
                   <Route path="/documents" element={<Documents />} />
                   <Route path="/ask" element={<Ask />} />
+                  <Route path="/auth" element={<Auth />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
@@ -37,7 +39,7 @@ const App = () => {
             </div>
           </BrowserRouter>
         </TooltipProvider>
-      </ThemeProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

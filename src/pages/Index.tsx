@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, MessageCircle, Brain, Shield, Sparkles } from "lucide-react";
+import { Upload, MessageCircle, Zap, Shield, Sparkles } from "lucide-react";
 
 const Index = () => {
   return (
@@ -66,7 +66,7 @@ const Index = () => {
 
           <Card className="p-8 bg-glass border-glass backdrop-blur-xl shadow-soft text-center hover:scale-105 transition-transform duration-300">
             <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-6 shadow-glow">
-              <Brain className="w-6 h-6 text-white" />
+              <Zap className="w-6 h-6 text-white" />
             </div>
             <h3 className="text-xl font-bold mb-4">RAG Inteligente</h3>
             <p className="text-muted-foreground leading-relaxed">

@@ -3,17 +3,5 @@ project_id = "gvgwajegdhqjmhqkkgwl"
 [functions.ask-document]
 verify_jwt = false
 
-[functions.update-document]
-verify_jwt = false
-
 [functions.upload-document]
-verify_jwt = false
-
-[functions.reset-password]
-verify_jwt = false
-
-[functions.delete-document]
-verify_jwt = false
-
-[functions.list-documents]
-verify_jwt = false
+verify_jwt = true

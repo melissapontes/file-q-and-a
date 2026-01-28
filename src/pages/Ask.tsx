@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, MessageCircle, Loader2, Paperclip, X, FileText, PawPrint, Brain } from "lucide-react";
+import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 interface Message {
@@ -154,10 +154,11 @@ const Ask = () => {
     }
   };
 
+  const hasOnlyWelcomeMessage = messages.length === 1;
 
   return (
-    <div className="bg-gradient-secondary p-2 sm:p-4 md:p-6 pb-8">
-      <div className="container mx-auto max-w-4xl">
+    <div className="bg-gradient-secondary p-2 sm:p-4 md:p-6 h-full">
+      <div className="container mx-auto max-w-4xl h-full">
         <div className="text-center mb-3 sm:mb-6 pt-4 sm:pt-8">
           <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
             Pergunte ao RAG
@@ -167,9 +168,9 @@ const Ask = () => {
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 sm:gap-6">
-          <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft overflow-hidden">
-            <ScrollArea className="h-[50vh] sm:h-[55vh] pr-2 sm:pr-4">
+        <div className={`flex flex-col ${hasOnlyWelcomeMessage ? 'gap-4 sm:gap-6' : 'h-[calc(100vh-16rem)] sm:h-[calc(100vh-20rem)]'}`}>
+          <Card className={`p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft ${hasOnlyWelcomeMessage ? '' : 'flex-1 mb-2 sm:mb-4'}`}>
+            <ScrollArea className={hasOnlyWelcomeMessage ? 'h-auto max-h-[60vh] pr-2 sm:pr-4' : 'h-full pr-2 sm:pr-4'}>
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div
@@ -177,17 +178,18 @@ const Ask = () => {
                     className={`flex gap-2 sm:gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
-                        <Brain size={18} className="text-white sm:w-5 sm:h-5" />
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
+                        R
                       </div>
                     )}
                     
                     <div
                       className={`p-3 sm:p-5 rounded-2xl break-words overflow-hidden ${
                         message.sender === 'user'
-                          ? 'bg-primary/90 text-primary-foreground max-w-[85%] sm:max-w-[80%]'
-                          : 'bg-[hsl(30,20%,90%)] dark:bg-[hsl(30,15%,25%)] flex-1 min-w-0'
+                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[85%] sm:max-w-[80%]'
+                          : 'bg-secondary/50 flex-1 min-w-0'
                       }`}
+                      style={message.sender === 'user' ? { color: '#FFFFFF' } : {}}
                     >
                       <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">
                         {message.sender === 'ai' ? (
@@ -213,15 +215,13 @@ const Ask = () => {
                       {message.references && message.references.length > 0 && (
                         <div className="mt-4 pt-3 border-t border-border/50">
                           <div className="flex items-center gap-2 mb-2">
-                            <FileText size={14} className="text-primary" />
-                            <span className="text-sm font-semibold text-foreground">
-                              Referência{message.references.length > 1 ? 's' : ''}:
-                            </span>
+                            <FileText size={14} className="text-muted-foreground" />
+                            <span className="text-xs font-semibold text-muted-foreground">Referências:</span>
                           </div>
                           <div className="space-y-1">
                             {message.references.map((ref, idx) => (
-                              <p key={idx} className="text-sm text-muted-foreground">
-                                {ref}
+                              <p key={idx} className="text-xs text-muted-foreground pl-4">
+                                {idx + 1}. {ref}
                               </p>
                             ))}
                           </div>
@@ -230,8 +230,8 @@ const Ask = () => {
                     </div>
 
                     {message.sender === 'user' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
-                        <PawPrint size={18} className="text-white sm:w-5 sm:h-5" />
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-sm sm:text-base">
+                        V
                       </div>
                     )}
                   </div>
@@ -239,10 +239,10 @@ const Ask = () => {
 
                 {isLoading && (
                   <div className="flex gap-2 sm:gap-3 justify-start w-full">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
-                      <Brain size={18} className="text-white sm:w-5 sm:h-5" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
+                      R
                     </div>
-                    <div className="bg-[hsl(30,20%,90%)] dark:bg-[hsl(30,15%,25%)] p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
+                    <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <Loader2 size={16} className="animate-spin flex-shrink-0" />
                         <span className="text-sm sm:text-base text-muted-foreground">
@@ -294,7 +294,7 @@ const Ask = () => {
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Digite sua pergunta..."
-                  className="min-h-[48px] sm:min-h-[60px] resize-none border-border text-sm sm:text-base text-foreground placeholder:text-muted-foreground"
+                  className="min-h-[48px] sm:min-h-[60px] resize-none border-border text-sm sm:text-base !text-white placeholder:text-muted-foreground"
                   disabled={isLoading}
                 />
               </div>
