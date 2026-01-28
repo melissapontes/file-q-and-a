@@ -756,6 +756,47 @@ REGRAS OBRIGATÓRIAS:
           console.log(`First annotation structure: ${JSON.stringify(annotations[0])}`);
         }
 
+        // ========== CITATION VALIDATION ==========
+        // Filter out citations from documents that are NOT in the preferred list
+        // This ensures we only cite documents that are actually relevant to the query
+        
+        let validAnnotations = annotations;
+        let invalidCitationsRemoved = 0;
+        
+        if (preferredFileIds && preferredFileIds.length > 0 && !specificDocumentRequested) {
+          // For general queries: only accept citations from prioritized documents
+          validAnnotations = annotations.filter((a: any) => {
+            if (a.type !== "file_citation") return true;
+            const fileId = a.file_citation?.file_id;
+            if (!fileId) return false;
+            const isValid = preferredFileIds.includes(fileId);
+            if (!isValid) {
+              const docName = citationMap.get(fileId) || fileId;
+              console.log(`REMOVED invalid citation from non-prioritized document: ${docName}`);
+              invalidCitationsRemoved++;
+            }
+            return isValid;
+          });
+        } else if (specificDocumentRequested) {
+          // For specific document queries: ONLY accept citations from that document
+          validAnnotations = annotations.filter((a: any) => {
+            if (a.type !== "file_citation") return true;
+            const fileId = a.file_citation?.file_id;
+            if (!fileId) return false;
+            const isValid = fileId === specificDocumentRequested.id;
+            if (!isValid) {
+              const docName = citationMap.get(fileId) || fileId;
+              console.log(`REMOVED invalid citation from wrong document: ${docName} (expected: ${specificDocumentRequested.originalName})`);
+              invalidCitationsRemoved++;
+            }
+            return isValid;
+          });
+        }
+        
+        if (invalidCitationsRemoved > 0) {
+          console.log(`Filtered out ${invalidCitationsRemoved} citations from non-relevant documents`);
+        }
+
         // Helper to normalize document names for deduplication
         const normalizeDocName = (name: string): string => {
           return name
@@ -767,25 +808,31 @@ REGRAS OBRIGATÓRIAS:
             .toLowerCase();
         };
 
-        // Build a map from fileId to normalized document name
+        // Build a map from fileId to normalized document name (only for valid citations)
         const fileIdToNormalizedName = new Map<string, string>();
         const normalizedNameToCanonicalFileId = new Map<string, string>();
 
-        for (const [fileId, filename] of citationMap.entries()) {
-          const normalized = normalizeDocName(filename);
-          fileIdToNormalizedName.set(fileId, normalized);
+        for (const annotation of validAnnotations) {
+          if (annotation.type === "file_citation") {
+            const fileId = annotation.file_citation?.file_id;
+            if (fileId && citationMap.has(fileId)) {
+              const filename = citationMap.get(fileId)!;
+              const normalized = normalizeDocName(filename);
+              fileIdToNormalizedName.set(fileId, normalized);
 
-          // Keep the first fileId encountered for each normalized name
-          if (!normalizedNameToCanonicalFileId.has(normalized)) {
-            normalizedNameToCanonicalFileId.set(normalized, fileId);
+              // Keep the first fileId encountered for each normalized name
+              if (!normalizedNameToCanonicalFileId.has(normalized)) {
+                normalizedNameToCanonicalFileId.set(normalized, fileId);
+              }
+            }
           }
         }
 
         // First pass: find unique documents (by normalized name) in order of appearance
         const uniqueNormalizedNames: string[] = [];
 
-        // Process annotations in the order they appear in the text (by start_index)
-        const sortedAnnotations = [...annotations]
+        // Process annotations in the order they appear in the text (by start_index) - only valid ones
+        const sortedAnnotations = [...validAnnotations]
           .filter((a) => a.type === "file_citation" && a.file_citation?.file_id)
           .sort((a, b) => (a.start_index || 0) - (b.start_index || 0));
 
@@ -818,6 +865,7 @@ REGRAS OBRIGATÓRIAS:
         console.log(`Unique documents (deduplicated): ${uniqueNormalizedNames.join(", ")}`);
 
         // Replace annotations using start_index and end_index (reverse order to preserve indices)
+        // IMPORTANT: Replace ALL annotations, but use empty string for invalid ones
         const annotationsToReplace = [...annotations]
           .filter(
             (a) =>
@@ -832,8 +880,15 @@ REGRAS OBRIGATÓRIAS:
         for (const annotation of annotationsToReplace) {
           const fileId = annotation.file_citation.file_id;
           const num = fileIdToNumber.get(fileId);
-          if (num && typeof annotation.start_index === "number" && typeof annotation.end_index === "number") {
-            answer = answer.slice(0, annotation.start_index) + ` **[${num}]**` + answer.slice(annotation.end_index);
+          
+          if (typeof annotation.start_index === "number" && typeof annotation.end_index === "number") {
+            if (num) {
+              // Valid citation - replace with numbered reference
+              answer = answer.slice(0, annotation.start_index) + ` **[${num}]**` + answer.slice(annotation.end_index);
+            } else {
+              // Invalid citation - remove it completely
+              answer = answer.slice(0, annotation.start_index) + answer.slice(annotation.end_index);
+            }
           }
         }
 
@@ -852,7 +907,14 @@ REGRAS OBRIGATÓRIAS:
           const cleanName = formatReferenceTitle(filename);
           return `[${index + 1}] ${cleanName}`;
         });
-        console.log(`Processed answer with ${references.length} unique references`);
+        
+        console.log(`Processed answer with ${references.length} unique references (after validation)`);
+        
+        // If all citations were removed, add a warning
+        if (annotations.length > 0 && references.length === 0) {
+          console.log("WARNING: All citations were from non-relevant documents and were removed");
+          answer += "\n\n⚠️ **Nota:** A resposta foi gerada mas as citações automáticas não correspondiam aos documentos relevantes para sua pergunta. Por favor, refine sua pergunta ou verifique os documentos disponíveis.";
+        }
       }
     }
 
