@@ -26,7 +26,7 @@ const Upload = () => {
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const validFiles = acceptedFiles.filter(file => {
-      const validTypes = ['.pdf', '.txt', '.md', '.docx'];
+      const validTypes = ['.pdf', '.txt', '.md', '.docx', '.xlsx', '.xls'];
       const extension = '.' + file.name.split('.').pop()?.toLowerCase();
       return validTypes.includes(extension);
     });
@@ -34,7 +34,7 @@ const Upload = () => {
     if (validFiles.length !== acceptedFiles.length) {
       toast({
         title: "Arquivos inválidos",
-        description: "Apenas arquivos .pdf, .txt, .md e .docx são permitidos.",
+        description: "Apenas arquivos .pdf, .txt, .md, .docx, .xlsx e .xls são permitidos.",
         variant: "destructive",
       });
     }
@@ -49,6 +49,8 @@ const Upload = () => {
       'text/plain': ['.txt'],
       'text/markdown': ['.md'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls'],
     },
   });
 
