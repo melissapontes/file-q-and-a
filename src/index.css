@@ -7,14 +7,74 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  /* Light Mode (default) */
   :root {
+    --background: 0 0% 98%;
+    --foreground: 240 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+
+    --primary: 174 74% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 58% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 5% 92%;
+    --muted-foreground: 240 5% 40%;
+
+    --accent: 200 58% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 240 5% 85%;
+    --input: 240 5% 90%;
+    --ring: 174 74% 40%;
+
+    --radius: 0.75rem;
+
+    /* Light mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(174 74% 40%), hsl(200 58% 45%));
+    --gradient-secondary: linear-gradient(135deg, hsl(240 5% 95%), hsl(240 5% 90%));
+    --gradient-accent: linear-gradient(90deg, hsl(174 74% 40% / 0.1), hsl(200 58% 45% / 0.1));
+    
+    /* Light mode glass effect */
+    --glass-bg: hsl(0 0% 100% / 0.9);
+    --glass-border: hsl(240 5% 80% / 0.5);
+    
+    /* Light mode shadows */
+    --shadow-glow: 0 0 40px hsl(174 74% 40% / 0.2);
+    --shadow-soft: 0 8px 32px hsl(240 10% 10% / 0.1);
+
+    /* Custom tag color */
+    --tag: 183 100% 34%;
+    --tag-foreground: 0 0% 100%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* Dark Mode */
+  .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
 
-    --card: 240 10% 3.9%;
+    --card: 240 10% 6%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 240 10% 3.9%;
+    --popover: 240 10% 6%;
     --popover-foreground: 0 0% 98%;
 
     --primary: 174 74% 56%;
@@ -36,18 +96,16 @@ All colors MUST be HSL.
     --input: 240 3.7% 15.9%;
     --ring: 174 74% 56%;
 
-    --radius: 0.75rem;
-
-    /* AI-themed gradients and colors */
+    /* Dark mode gradients */
     --gradient-primary: linear-gradient(135deg, hsl(174 74% 56%), hsl(200 58% 50%));
     --gradient-secondary: linear-gradient(135deg, hsl(240 3.7% 15.9%), hsl(240 5% 20%));
     --gradient-accent: linear-gradient(90deg, hsl(174 74% 56% / 0.1), hsl(200 58% 50% / 0.1));
     
-    /* Glass effect */
+    /* Dark mode glass effect */
     --glass-bg: hsl(240 10% 3.9% / 0.8);
     --glass-border: hsl(0 0% 100% / 0.1);
     
-    /* Shadows */
+    /* Dark mode shadows */
     --shadow-glow: 0 0 40px hsl(174 74% 56% / 0.3);
     --shadow-soft: 0 8px 32px hsl(240 10% 3.9% / 0.4);
 
@@ -55,53 +113,6 @@ All colors MUST be HSL.
     --tag: 183 100% 34%;
     --tag-foreground: 0 0% 100%;
 
-    --radius: 0.75rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
