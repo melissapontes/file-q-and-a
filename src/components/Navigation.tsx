@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import ThemeToggle from "./ThemeToggle";
 import logo from "@/assets/logo.png";
 
 const Navigation = () => {
@@ -57,6 +58,7 @@ const Navigation = () => {
                         <User size={14} />
                         {user.email}
                       </span>
+                      <ThemeToggle />
                       <Button
                         variant="ghost"
                         size="sm"
@@ -69,17 +71,20 @@ const Navigation = () => {
                     </div>
                   </>
                 ) : (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    asChild
-                    className="shadow-glow"
-                  >
-                    <Link to="/auth" className="flex items-center gap-1 sm:gap-2">
-                      <LogIn size={16} />
-                      <span className="hidden sm:inline">Entrar</span>
-                    </Link>
-                  </Button>
+                  <>
+                    <ThemeToggle />
+                    <Button
+                      variant="default"
+                      size="sm"
+                      asChild
+                      className="shadow-glow"
+                    >
+                      <Link to="/auth" className="flex items-center gap-1 sm:gap-2">
+                        <LogIn size={16} />
+                        <span className="hidden sm:inline">Entrar</span>
+                      </Link>
+                    </Button>
+                  </>
                 )}
               </>
             )}
