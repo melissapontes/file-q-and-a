@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -159,11 +160,44 @@ serve(async (req) => {
 
         // Convert file to buffer for OpenAI
         const fileBuffer = await file.arrayBuffer();
-        const fileBlob = new Blob([fileBuffer], { type: file.type });
+        
+        // Check if file is Excel and convert to text
+        const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                        file.type === 'application/vnd.ms-excel' ||
+                        file.name.toLowerCase().endsWith('.xlsx') ||
+                        file.name.toLowerCase().endsWith('.xls');
+        
+        let uploadBlob: Blob;
+        let uploadFileName: string;
+        
+        if (isExcel) {
+          console.log('Converting Excel file to text format...');
+          try {
+            const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array' });
+            let textContent = '';
+            
+            for (const sheetName of workbook.SheetNames) {
+              const sheet = workbook.Sheets[sheetName];
+              textContent += `=== Sheet: ${sheetName} ===\n\n`;
+              textContent += XLSX.utils.sheet_to_csv(sheet);
+              textContent += '\n\n';
+            }
+            
+            uploadBlob = new Blob([textContent], { type: 'text/plain' });
+            uploadFileName = file.name.replace(/\.(xlsx|xls)$/i, '.txt');
+            console.log('Excel converted to text successfully');
+          } catch (conversionError) {
+            console.error('Error converting Excel:', conversionError);
+            throw new Error(`Failed to convert Excel file: ${conversionError}`);
+          }
+        } else {
+          uploadBlob = new Blob([fileBuffer], { type: file.type });
+          uploadFileName = file.name;
+        }
 
         // Upload file to OpenAI
         const formDataOpenAI = new FormData();
-        formDataOpenAI.append('file', fileBlob, file.name);
+        formDataOpenAI.append('file', uploadBlob, uploadFileName);
         formDataOpenAI.append('purpose', 'assistants');
 
         const openaiFileResponse = await fetch('https://api.openai.com/v1/files', {
