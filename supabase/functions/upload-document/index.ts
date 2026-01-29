@@ -80,11 +80,18 @@ serve(async (req) => {
     }
 
     // Validate file type
-    const allowedTypes = ['application/pdf', 'text/plain', 'text/markdown', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const allowedTypes = [
+      'application/pdf', 
+      'text/plain', 
+      'text/markdown', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel'
+    ];
     if (!allowedTypes.includes(file.type)) {
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid file type. Only PDF, TXT, MD, and DOCX files are allowed.',
+          error: 'Invalid file type. Only PDF, TXT, MD, DOCX, XLSX, and XLS files are allowed.',
           success: false 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
