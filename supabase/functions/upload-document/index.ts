@@ -65,6 +65,7 @@ serve(async (req) => {
     const formData = await req.formData();
     const file = formData.get('file') as File;
     const tagsString = formData.get('tags') as string | null;
+    const replaceDocId = formData.get('replaceDocId') as string | null;
 
     if (!file) {
       return new Response(
@@ -78,6 +79,46 @@ serve(async (req) => {
     if (tagsString && tagsString.trim()) {
       tags = tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
       console.log('Tags received:', tags);
+    }
+
+    // If replacing an existing document, delete it first
+    if (replaceDocId) {
+      console.log('Replacing existing document:', replaceDocId);
+      
+      // Get old document info to delete from OpenAI
+      const { data: oldDoc, error: oldDocError } = await supabase
+        .from('documents')
+        .select('openai_file_id, storage_path')
+        .eq('id', replaceDocId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (oldDocError) {
+        console.error('Error fetching old document:', oldDocError);
+      } else if (oldDoc) {
+        // Delete from OpenAI if file exists
+        if (oldDoc.openai_file_id) {
+          try {
+            await fetch(`https://api.openai.com/v1/files/${oldDoc.openai_file_id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+            });
+            console.log('Deleted old file from OpenAI');
+          } catch (e) {
+            console.error('Error deleting from OpenAI:', e);
+          }
+        }
+
+        // Delete from storage if exists
+        if (oldDoc.storage_path) {
+          await supabase.storage.from('documents').remove([oldDoc.storage_path]);
+          console.log('Deleted old file from storage');
+        }
+      }
+
+      // Delete old document record
+      await supabase.from('documents').delete().eq('id', replaceDocId);
+      console.log('Deleted old document record');
     }
 
     // Validate file type
