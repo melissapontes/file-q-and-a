@@ -6,7 +6,7 @@ const Footer = () => {
       <div className="container mx-auto px-4 text-center">
         <p className="text-muted-foreground text-sm">© 2026 RAG Nefro e Uro.</p>
         <p className="text-muted-foreground text-sm mt-1">
-          Desenvolvido por{" "}
+          Desenvolvido POR{" "}
           <a
             href="https://www.instagram.com/mpdigital.tech/"
             target="_blank"
