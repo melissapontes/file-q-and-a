@@ -258,9 +258,12 @@ serve(async (req) => {
             console.log(`\n📄 Analyzing "${vf.filename}"`);
             console.log(`  Tags: [${docData.tags.join(', ')}]`);
             
-            // Check each tag against question
+            // Check each tag against question (ignore empty/too-short tags)
             docData.tags.forEach(tag => {
               const normalizedTag = normalize(tag);
+              if (!normalizedTag || normalizedTag.length < 3) {
+                return;
+              }
               let matched = false;
               
               // Strategy 1: Check if normalized question contains normalized tag
@@ -275,6 +278,9 @@ serve(async (req) => {
               if (!matched) {
                 for (const word of questionWords) {
                   const normalizedWord = normalize(word);
+                  if (!normalizedWord || normalizedWord.length < 3) {
+                    continue;
+                  }
                   if (normalizedTag.includes(normalizedWord) || normalizedWord.includes(normalizedTag)) {
                     matched = true;
                     score += 80;
