@@ -203,8 +203,27 @@ serve(async (req) => {
         // Enhanced heuristic using tags and filename matching
         const qLower = question.toLowerCase();
         
-        // Extract potential keywords from the question
-        const questionWords = qLower.split(/\s+/).filter(w => w.length > 3);
+        // Normalize function - removes accents, spaces, underscores, special chars
+        const normalize = (str: string) => {
+          return str
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove accents
+            .replace(/[_\-\s]+/g, '') // Remove spaces, underscores, hyphens
+            .replace(/[^\w]/g, ''); // Remove special chars
+        };
+        
+        // Extract potential keywords from the question (longer and more flexible)
+        const questionWords = qLower
+          .split(/\s+/)
+          .filter(w => w.length > 2); // Lower threshold to catch more words
+        
+        const normalizedQuestion = normalize(qLower);
+        
+        console.log(`\n🔍 Question analysis:`);
+        console.log(`  Original: "${question}"`);
+        console.log(`  Keywords: [${questionWords.join(', ')}]`);
+        console.log(`  Normalized: "${normalizedQuestion}"`);
         
         // Score each document based on tag and filename relevance
         const scoredFiles = vectorFiles.map(vf => {
@@ -214,51 +233,86 @@ serve(async (req) => {
           // Find matching document in Supabase data
           const docData = documentsWithTags.find(d => d.openai_file_id === vf.id);
           
-          // Score based on tags - HEAVILY WEIGHTED
+          // Score based on tags - HEAVILY WEIGHTED with flexible matching
           let tagMatchCount = 0;
+          let matchedTags: string[] = [];
+          
           if (docData && docData.tags.length > 0) {
-            const tagMatches = docData.tags.filter(tag => 
-              questionWords.some(word => tag.toLowerCase().includes(word))
-            );
-            tagMatchCount = tagMatches.length;
-            score += tagMatchCount * 100; // VERY HIGH weight for tag matches
+            console.log(`\n📄 Analyzing "${vf.filename}"`);
+            console.log(`  Tags: [${docData.tags.join(', ')}]`);
             
-            console.log(`Document "${vf.filename}": tags=${docData.tags}, matches=${tagMatchCount}, score_from_tags=${tagMatchCount * 100}`);
+            // Check each tag against question
+            docData.tags.forEach(tag => {
+              const normalizedTag = normalize(tag);
+              let matched = false;
+              
+              // Strategy 1: Check if normalized question contains normalized tag
+              if (normalizedQuestion.includes(normalizedTag)) {
+                matched = true;
+                score += 100;
+                console.log(`  ✅ FULL MATCH: "${tag}" found in question`);
+              }
+              
+              // Strategy 2: Check if normalized tag contains any question word
+              if (!matched) {
+                for (const word of questionWords) {
+                  const normalizedWord = normalize(word);
+                  if (normalizedTag.includes(normalizedWord) || normalizedWord.includes(normalizedTag)) {
+                    matched = true;
+                    score += 80;
+                    console.log(`  ✅ PARTIAL MATCH: tag "${tag}" matches word "${word}"`);
+                    break;
+                  }
+                }
+              }
+              
+              // Strategy 3: Check individual words in tag
+              if (!matched) {
+                const tagWords = tag.toLowerCase().split(/[_\-\s]+/);
+                for (const tagWord of tagWords) {
+                  const normalizedTagWord = normalize(tagWord);
+                  if (normalizedTagWord.length > 2 && normalizedQuestion.includes(normalizedTagWord)) {
+                    matched = true;
+                    score += 50;
+                    console.log(`  ✅ WORD MATCH: tag word "${tagWord}" from "${tag}" found`);
+                    break;
+                  }
+                }
+              }
+              
+              if (matched) {
+                tagMatchCount++;
+                matchedTags.push(tag);
+              }
+            });
+            
+            if (tagMatchCount > 0) {
+              console.log(`  🎯 Total score from tags: ${score} (${tagMatchCount} matches)`);
+            } else {
+              console.log(`  ❌ No tag matches`);
+            }
           }
           
-          // Only use filename if no tag matches
+          // Filename matching (lower priority)
           if (tagMatchCount === 0) {
             const filenameMatches = questionWords.filter(word => nameLower.includes(word));
-            score += filenameMatches.length * 10; // Lower weight if no tags match
+            if (filenameMatches.length > 0) {
+              score += filenameMatches.length * 10;
+              console.log(`  📝 Filename matches: ${filenameMatches.length} words`);
+            }
           }
           
-          // Special boost for known important terms only if tags have relevance
-          const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox', 'oxalate'];
-          const canineTerms = ['canine', 'canino', 'cão', 'cao', 'cães', 'caes', 'dog', 'dogs'];
-          
-          const hasOxalate = oxalateTerms.some(t => qLower.includes(t));
-          const isDogContext = canineTerms.some(t => qLower.includes(t));
-          
-          if (hasOxalate && docData?.tags.length) {
-            const tagsHaveOxalate = docData.tags.some(tag => 
-              oxalateTerms.some(t => tag.toLowerCase().includes(t))
-            );
-            if (tagsHaveOxalate) score += 30;
-            
-            const nameHasCanine = canineTerms.some(t => nameLower.includes(t));
-            const tagsHaveCanine = docData.tags.some(tag => 
-              canineTerms.some(t => tag.toLowerCase().includes(t))
-            );
-            if (isDogContext && (nameHasCanine || tagsHaveCanine)) score += 25;
-          }
-          
-          return { id: vf.id, filename: vf.filename, score };
+          return { id: vf.id, filename: vf.filename, score, matchedTags };
         });
         
         // Sort by score - Get both relevant and non-relevant files
         scoredFiles.sort((a, b) => b.score - a.score);
         const relevantFiles = scoredFiles.filter(sf => sf.score > 0);
         const allFiles = scoredFiles;
+        
+        console.log(`\n📊 Scoring results:`);
+        console.log(`  Relevant files (score > 0): ${relevantFiles.length}`);
+        console.log(`  Total files: ${allFiles.length}`);
         
         let hasRelevantTagMatches = false;
         let usedFallback = false;
@@ -271,9 +325,12 @@ serve(async (req) => {
             .map(sf => sf.id);
           hasRelevantTagMatches = true;
           
-          console.log(`Using ${preferredFileIds.length} documents with relevant tags:`);
+          console.log(`\n✅ Using ${preferredFileIds.length} documents with relevant tags:`);
           relevantFiles.slice(0, 10).forEach(sf => {
-            console.log(`  [TAG MATCH] ${sf.filename} (score: ${sf.score})`);
+            const matchInfo = sf.matchedTags && sf.matchedTags.length > 0 
+              ? ` [Tags: ${sf.matchedTags.join(', ')}]`
+              : '';
+            console.log(`  [TAG MATCH] ${sf.filename} (score: ${sf.score})${matchInfo}`);
           });
           
           // If we have room (less than 10), fill remaining slots with other documents
