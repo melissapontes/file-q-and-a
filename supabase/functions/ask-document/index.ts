@@ -413,7 +413,64 @@ serve(async (req) => {
       );
     }
 
-    // Step 1: Create an Assistant with file_search
+    // Step 1: Create a temporary vector store with ONLY selected files
+    let tempVectorStoreId: string | null = null;
+    if (preferredFileIds.length > 0) {
+      try {
+        const vsResponse = await fetch('https://api.openai.com/v1/vector_stores', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+            'OpenAI-Beta': 'assistants=v2',
+          },
+          body: JSON.stringify({
+            name: `temp-rag-${crypto.randomUUID()}`,
+          }),
+        });
+
+        if (!vsResponse.ok) {
+          const errorText = await vsResponse.text();
+          throw new Error(`Failed to create temp vector store: ${errorText}`);
+        }
+
+        const vsData = await vsResponse.json();
+        tempVectorStoreId = vsData.id;
+        console.log(`Created temporary vector store: ${tempVectorStoreId}`);
+
+        // Add ONLY selected files to the temporary vector store
+        for (const fileId of preferredFileIds) {
+          const addFileResponse = await fetch(`https://api.openai.com/v1/vector_stores/${tempVectorStoreId}/files`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2',
+            },
+            body: JSON.stringify({ file_id: fileId }),
+          });
+
+          if (!addFileResponse.ok) {
+            const errorText = await addFileResponse.text();
+            throw new Error(`Failed to add file ${fileId} to temp vector store: ${errorText}`);
+          }
+        }
+      } catch (e) {
+        console.error('Error creating temporary vector store:', e);
+        // Fall back to no response if temp store cannot be created
+        return new Response(
+          JSON.stringify({
+            answer: 'Desculpe, ocorreu um erro ao preparar os documentos para a busca. Tente novamente em alguns instantes.',
+            references: [],
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    }
+
+    // Step 2: Create an Assistant with file_search
     console.log('Creating Assistant...');
     const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
       method: 'POST',
@@ -449,11 +506,12 @@ FORMATAÇÃO DA RESPOSTA:
 
 IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
         model: 'gpt-4o-mini',
-        tools: [{ 
+        tools: [{
           type: 'file_search',
         }],
-        // NOT using vector_store_ids here - files will be attached to the message instead
-        // This ensures ONLY pre-selected files are searched
+        tool_resources: tempVectorStoreId
+          ? { file_search: { vector_store_ids: [tempVectorStoreId] } }
+          : undefined,
       }),
     });
 
@@ -502,13 +560,8 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
       content: fullQuestion
     };
 
-    // Attach prioritized vector-store files first (to bias retrieval)
+    // Attachments are not needed when using temporary vector store
     const allAttachments: any[] = [];
-    if (typeof preferredFileIds !== 'undefined' && preferredFileIds.length > 0) {
-      allAttachments.push(
-        ...preferredFileIds.map(fileId => ({ file_id: fileId, tools: [{ type: 'file_search' }] }))
-      );
-    }
 
     // Then attach any ad-hoc files uploaded with the question
     if (uploadedFileIds.length > 0) {
@@ -688,6 +741,22 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
       console.log('Assistant deleted');
     } catch (e) {
       console.log('Could not delete assistant:', e);
+    }
+
+    // Cleanup: Delete temporary vector store
+    if (tempVectorStoreId) {
+      try {
+        await fetch(`https://api.openai.com/v1/vector_stores/${tempVectorStoreId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'OpenAI-Beta': 'assistants=v2',
+          },
+        });
+        console.log('Temporary vector store deleted');
+      } catch (e) {
+        console.log('Could not delete temporary vector store:', e);
+      }
     }
 
     console.log('Generated answer successfully');
