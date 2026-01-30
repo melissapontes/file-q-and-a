@@ -170,7 +170,7 @@ serve(async (req) => {
 
     let filesList = 'Arquivos disponíveis no vector store: (nenhum encontrado)';
     // Files present in the vector store with their human filenames
-    const vectorFiles: { id: string; filename: string }[] = [];
+    const vectorFiles: { vectorStoreFileId: string; fileId: string; filename: string }[] = [];
     // Files we want to prioritize for the current question (by heuristics)
     let preferredFileIds: string[] = [];
     let fallbackInfo = ''; // Initialize fallback info variable
@@ -179,26 +179,41 @@ serve(async (req) => {
     if (filesResponse.ok) {
       const filesData = await filesResponse.json();
       if (filesData.data && filesData.data.length > 0) {
-        const fileIds: string[] = filesData.data.map((f: any) => f.id);
+        const fileRefs: { vectorStoreFileId: string; fileId: string }[] = filesData.data.map((f: any) => ({
+          vectorStoreFileId: f.id,
+          fileId: f.file_id ?? f.id,
+        }));
 
         // Fetch filenames for each file id so we can apply simple heuristics
-        for (const id of fileIds) {
+        for (const ref of fileRefs) {
           try {
-            const fr = await fetch(`https://api.openai.com/v1/files/${id}`, {
+            const fr = await fetch(`https://api.openai.com/v1/files/${ref.fileId}`, {
               headers: { 'Authorization': `Bearer ${openaiApiKey}` },
             });
             if (fr.ok) {
               const fd = await fr.json();
-              vectorFiles.push({ id, filename: fd.filename || id });
+              vectorFiles.push({
+                vectorStoreFileId: ref.vectorStoreFileId,
+                fileId: ref.fileId,
+                filename: fd.filename || ref.fileId,
+              });
             } else {
-              vectorFiles.push({ id, filename: id });
+              vectorFiles.push({
+                vectorStoreFileId: ref.vectorStoreFileId,
+                fileId: ref.fileId,
+                filename: ref.fileId,
+              });
             }
           } catch {
-            vectorFiles.push({ id, filename: id });
+            vectorFiles.push({
+              vectorStoreFileId: ref.vectorStoreFileId,
+              fileId: ref.fileId,
+              filename: ref.fileId,
+            });
           }
         }
 
-        filesList = `Arquivos disponíveis no vector store (${vectorFiles.length} arquivos): ${vectorFiles.map(f => f.id).join(', ')}`;
+        filesList = `Arquivos disponíveis no vector store (${vectorFiles.length} arquivos): ${vectorFiles.map(f => f.fileId).join(', ')}`;
         console.log(filesList);
 
         // Enhanced heuristic using tags and filename matching
@@ -232,8 +247,8 @@ serve(async (req) => {
           let scoreFromTags = 0;
           const nameLower = vf.filename.toLowerCase();
           
-          // Find matching document in Supabase data
-          const docData = documentsWithTags.find(d => d.openai_file_id === vf.id);
+          // Find matching document in Supabase data (OpenAI file id)
+          const docData = documentsWithTags.find(d => d.openai_file_id === vf.fileId);
           
           // Score based on tags - HEAVILY WEIGHTED with flexible matching
           let tagMatchCount = 0;
@@ -306,7 +321,7 @@ serve(async (req) => {
             }
           }
           
-          return { id: vf.id, filename: vf.filename, score, scoreFromTags, tagMatchCount, matchedTags };
+          return { id: vf.fileId, filename: vf.filename, score, scoreFromTags, tagMatchCount, matchedTags };
         });
         
         // Sort by score - Get both relevant and non-relevant files
