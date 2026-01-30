@@ -348,7 +348,11 @@ serve(async (req) => {
               console.log(`  [NO TAG] ${sf.filename} (score: ${sf.score})`);
             });
           }
-        } else {
+        
+            // NO FALLBACK - We do NOT fill empty slots with untagged documents
+            // This ensures ONLY relevant documents are used
+            console.log(`\n🎯 Using ONLY ${preferredFileIds.length} documents with tag matches (no fallback)`);
+          } else {
           // No relevant files found - use best available (max coverage mode)
           preferredFileIds = allFiles
             .slice(0, 10)
