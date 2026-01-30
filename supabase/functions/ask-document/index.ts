@@ -254,20 +254,63 @@ serve(async (req) => {
           return { id: vf.id, filename: vf.filename, score };
         });
         
-        // Sort by score - ONLY include documents with score > 0 (must have tag or filename match)
+        // Sort by score - Get both relevant and non-relevant files
         scoredFiles.sort((a, b) => b.score - a.score);
         const relevantFiles = scoredFiles.filter(sf => sf.score > 0);
-        preferredFileIds = relevantFiles
-          .slice(0, 10) // Max 10 attachments allowed by OpenAI API
-          .map(sf => sf.id);
+        const allFiles = scoredFiles;
+        
+        let hasRelevantTagMatches = false;
+        let usedFallback = false;
+        
+        // FALLBACK STRATEGY: Maximize coverage
+        if (relevantFiles.length > 0) {
+          // Priority: Use relevant files first
+          preferredFileIds = relevantFiles
+            .slice(0, 10)
+            .map(sf => sf.id);
+          hasRelevantTagMatches = true;
+          
+          console.log(`Using ${preferredFileIds.length} documents with relevant tags:`);
+          relevantFiles.slice(0, 10).forEach(sf => {
+            console.log(`  [TAG MATCH] ${sf.filename} (score: ${sf.score})`);
+          });
+          
+          // If we have room (less than 10), fill remaining slots with other documents
+          if (relevantFiles.length < 10 && allFiles.length > relevantFiles.length) {
+            const remainingSlots = 10 - relevantFiles.length;
+            const otherFiles = allFiles
+              .filter(sf => sf.score === 0) // Documents without tag matches
+              .slice(0, remainingSlots);
+            
+            preferredFileIds.push(...otherFiles.map(sf => sf.id));
+            usedFallback = true;
+            
+            console.log(`\n⚠️ FALLBACK: Filling ${otherFiles.length} remaining slots with documents without tag matches:`);
+            otherFiles.forEach(sf => {
+              console.log(`  [NO TAG] ${sf.filename} (score: ${sf.score})`);
+            });
+          }
+        } else {
+          // No relevant files found - use best available (max coverage mode)
+          preferredFileIds = allFiles
+            .slice(0, 10)
+            .map(sf => sf.id);
+          usedFallback = true;
+          
+          console.log(`⚠️ WARNING: No documents with relevant tags found!`);
+          console.log(`FALLBACK: Using top ${preferredFileIds.length} documents from entire vector store for maximum coverage:`);
+          allFiles.slice(0, 10).forEach(sf => {
+            console.log(`  [FALLBACK] ${sf.filename} (score: ${sf.score})`);
+          });
+        }
+        
+        // Store fallback info for assistant message
+        const fallbackInfo = usedFallback 
+          ? `\n\n⚠️ NOTA INTERNA: Esta busca usou modo de cobertura máxima (fallback). Nem todos os documentos têm tags perfeitamente alinhadas com a pergunta.`
+          : '';
         
         if (preferredFileIds.length > 0) {
-          console.log(`Using ${preferredFileIds.length} most relevant documents (filtered by tags):`);
-          relevantFiles.slice(0, 10).forEach(sf => {
-            console.log(`  - ${sf.filename} (score: ${sf.score})`);
-          });
-        } else {
-          console.log(`WARNING: No documents with relevant tags found. Using all documents for vector search.`);
+          console.log(`\n✅ Final selection: ${preferredFileIds.length} documents ready for search`);
         }
       }
     } else {
@@ -288,14 +331,15 @@ serve(async (req) => {
         instructions: `Você é um assistente especializado em nefrologia veterinária. 
 
 ${filesList}
+${fallbackInfo}
 
 INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
 1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos disponíveis
-2. **IMPORTANTE**: Os documentos foram PRÉ-SELECIONADOS baseado em tags relevantes à pergunta do usuário
-3. Se um documento foi incluído, é porque suas tags combinam com o tópico - use-o como referência principal
-4. Busque extensivamente através dos documentos disponibilizados - eles são relevantes para a pergunta
-5. **SE A PERGUNTA FOR SOBRE UM TÓPICO ESPECÍFICO (ex: infecção urinária)**, use APENAS documentos com tags relacionadas
-6. NUNCA use documentos que não tenham tags relevantes ao tópico - mesmo que mencionem a palavra de passagem
+2. **IMPORTANTE**: Os documentos foram PRÉ-SELECIONADOS usando inteligência de tags
+3. Se um documento foi incluído com tag match, é porque suas tags combinam com o tópico - use como referência principal
+4. Se um documento foi incluído pelo fallback (sem tag perfeita), use para contexto adicional
+5. Busque extensivamente através dos documentos - eles foram selecionados para máxima cobertura
+6. **PREFERÊNCIA**: Cite preferencialmente documentos com tags perfeitamente alinhadas com a pergunta
 7. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
 8. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
 9. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
