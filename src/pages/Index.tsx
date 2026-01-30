@@ -1,11 +1,28 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Upload, MessageCircle, Zap, Shield, Sparkles } from "lucide-react";
+import { MessageCircle, Zap, Shield, Upload } from "lucide-react";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-secondary">
+    <div 
+      className="min-h-screen bg-gradient-secondary"
+      style={{
+        backgroundImage: "url('https://images.unsplash.com/photo-1677442d019cecf8978bf82fb6f21cc01e76e6178?w=1600&h=900&fit=crop')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
+        position: "relative"
+      }}
+    >
+      {/* Overlay para melhorar legibilidade */}
+      <div 
+        className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/60"
+        style={{ pointerEvents: "none" }}
+      />
+      
+      {/* Conteúdo */}
+      <div className="relative z-10">
       {/* Hero Section */}
       <section className="container mx-auto px-6 py-20 text-center">
         <div className="max-w-4xl mx-auto">
@@ -24,17 +41,6 @@ const Index = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
-            <Button 
-              size="lg" 
-              className="bg-gradient-primary hover:opacity-90 shadow-glow text-lg px-8 py-6"
-              asChild
-            >
-              <Link to="/upload" className="flex items-center gap-2">
-                <Upload size={20} />
-                Upload
-              </Link>
-            </Button>
-            
             <Button 
               variant="outline" 
               size="lg" 
@@ -88,6 +94,8 @@ const Index = () => {
         </div>
       </section>
 
+    </div>
+      </div>
     </div>
   );
 };
