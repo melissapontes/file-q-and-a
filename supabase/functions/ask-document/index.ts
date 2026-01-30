@@ -229,6 +229,7 @@ serve(async (req) => {
         // Score each document based on tag and filename relevance
         const scoredFiles = vectorFiles.map(vf => {
           let score = 0;
+          let scoreFromTags = 0;
           const nameLower = vf.filename.toLowerCase();
           
           // Find matching document in Supabase data
@@ -251,6 +252,7 @@ serve(async (req) => {
               if (normalizedQuestion.includes(normalizedTag)) {
                 matched = true;
                 score += 100;
+                scoreFromTags += 100;
                 console.log(`  ✅ FULL MATCH: "${tag}" found in question`);
               }
               
@@ -261,6 +263,7 @@ serve(async (req) => {
                   if (normalizedTag.includes(normalizedWord) || normalizedWord.includes(normalizedTag)) {
                     matched = true;
                     score += 80;
+                    scoreFromTags += 80;
                     console.log(`  ✅ PARTIAL MATCH: tag "${tag}" matches word "${word}"`);
                     break;
                   }
@@ -275,6 +278,7 @@ serve(async (req) => {
                   if (normalizedTagWord.length > 2 && normalizedQuestion.includes(normalizedTagWord)) {
                     matched = true;
                     score += 50;
+                    scoreFromTags += 50;
                     console.log(`  ✅ WORD MATCH: tag word "${tagWord}" from "${tag}" found`);
                     break;
                   }
@@ -294,25 +298,24 @@ serve(async (req) => {
             }
           }
           
-          // Filename matching (lower priority)
+          // Filename matching (lower priority) - DO NOT use for eligibility
           if (tagMatchCount === 0) {
             const filenameMatches = questionWords.filter(word => nameLower.includes(word));
             if (filenameMatches.length > 0) {
-              score += filenameMatches.length * 10;
-              console.log(`  📝 Filename matches: ${filenameMatches.length} words`);
+              console.log(`  📝 Filename matches (ignored for eligibility): ${filenameMatches.length} words`);
             }
           }
           
-          return { id: vf.id, filename: vf.filename, score, matchedTags };
+          return { id: vf.id, filename: vf.filename, score, scoreFromTags, tagMatchCount, matchedTags };
         });
         
         // Sort by score - Get both relevant and non-relevant files
         scoredFiles.sort((a, b) => b.score - a.score);
-        const relevantFiles = scoredFiles.filter(sf => sf.score > 0);
+        const relevantFiles = scoredFiles.filter(sf => sf.tagMatchCount > 0);
         const allFiles = scoredFiles;
         
         console.log(`\n📊 Scoring results:`);
-        console.log(`  Relevant files (score > 0): ${relevantFiles.length}`);
+        console.log(`  Relevant files (tag matches > 0): ${relevantFiles.length}`);
         console.log(`  Total files: ${allFiles.length}`);
         
         let hasRelevantTagMatches = false;
