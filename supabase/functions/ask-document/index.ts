@@ -392,15 +392,15 @@ ${filesList}
 ${fallbackInfo}
 
 INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
-1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos disponíveis
-2. **IMPORTANTE**: Os documentos foram PRÉ-SELECIONADOS usando inteligência de tags
-3. Se um documento foi incluído com tag match, é porque suas tags combinam com o tópico - use como referência principal
-4. Se um documento foi incluído pelo fallback (sem tag perfeita), use para contexto adicional
-5. Busque extensivamente através dos documentos - eles foram selecionados para máxima cobertura
-6. **PREFERÊNCIA**: Cite preferencialmente documentos com tags perfeitamente alinhadas com a pergunta
+1. **ATENÇÃO**: Você receberá APENAS os documentos relevantes anexados à mensagem
+2. **NÃO busque em outros documentos** - use SOMENTE os arquivos que foram anexados
+3. Os documentos foram PRÉ-SELECIONADOS baseado em tags que combinam perfeitamente com a pergunta
+4. Se um documento foi anexado, é porque ele É relevante para o tópico
+5. **RESTRIÇÃO CRÍTICA**: Cite APENAS documentos que foram anexados à conversa
+6. Se a informação não estiver nos documentos anexados, diga claramente ao usuário
 7. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
 8. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
-9. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
+9. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS ANEXADOS**: Diga: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis para esta consulta."
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
@@ -414,12 +414,8 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
         tools: [{ 
           type: 'file_search',
         }],
-        tool_resources: {
-          file_search: {
-            vector_store_ids: [vectorStoreId],
-            
-          }
-        }
+        // NOT using vector_store_ids here - files will be attached to the message instead
+        // This ensures ONLY pre-selected files are searched
       }),
     });
 
