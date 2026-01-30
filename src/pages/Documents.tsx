@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Document {
@@ -22,7 +23,10 @@ const Documents = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingDoc, setEditingDoc] = useState<string | null>(null);
+  const [editName, setEditName] = useState<string>('');
   const [editTags, setEditTags] = useState<string>('');
+  const [reuploadingDoc, setReuploadingDoc] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -61,33 +65,91 @@ const Documents = () => {
     }
   };
 
-  const handleUpdateTags = async (docId: string) => {
+  const handleUpdateDocument = async (docId: string) => {
     try {
       const tags = editTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
       
       const { error } = await supabase
         .from('documents')
-        .update({ tags })
+        .update({ 
+          tags,
+          original_name: editName.trim() || undefined
+        })
         .eq('id', docId);
 
       if (error) throw error;
 
       toast({
-        title: "Tags atualizadas!",
-        description: "As tags foram atualizadas com sucesso.",
+        title: "Documento atualizado!",
+        description: "O nome e as tags foram atualizados com sucesso.",
       });
 
       setEditingDoc(null);
+      setEditName('');
       setEditTags('');
       fetchDocuments();
     } catch (error) {
-      console.error('Error updating tags:', error);
+      console.error('Error updating document:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível atualizar as tags.",
+        description: "Não foi possível atualizar o documento.",
         variant: "destructive",
       });
     }
+  };
+
+  const handleReupload = async (docId: string, file: File) => {
+    try {
+      setReuploadingDoc(docId);
+      
+      // Get the current document to preserve metadata
+      const currentDoc = documents.find(d => d.id === docId);
+      if (!currentDoc) throw new Error('Documento não encontrado');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      // Create form data with the new file
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tags', currentDoc.tags?.join(',') || '');
+      formData.append('replaceDocId', docId);
+
+      const response = await supabase.functions.invoke('upload-document', {
+        body: formData,
+      });
+
+      if (response.error) throw response.error;
+
+      toast({
+        title: "Re-upload iniciado!",
+        description: "O documento está sendo processado novamente.",
+      });
+
+      fetchDocuments();
+    } catch (error) {
+      console.error('Error re-uploading document:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível fazer o re-upload do documento.",
+        variant: "destructive",
+      });
+    } finally {
+      setReuploadingDoc(null);
+    }
+  };
+
+  const handleReuploadClick = (docId: string) => {
+    setReuploadingDoc(docId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && reuploadingDoc) {
+      handleReupload(reuploadingDoc, file);
+    }
+    e.target.value = '';
   };
 
   const handleDelete = async (docId: string) => {
@@ -146,6 +208,15 @@ const Documents = () => {
           </p>
         </div>
 
+        {/* Hidden file input for re-upload */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept=".pdf,.txt,.md,.docx,.xlsx,.xls"
+          className="hidden"
+        />
+
         <Card className="p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
           {documents.length === 0 ? (
             <div className="text-center py-12">
@@ -190,31 +261,47 @@ const Documents = () => {
                       </div>
 
                       {editingDoc === doc.id ? (
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="text"
-                            value={editTags}
-                            onChange={(e) => setEditTags(e.target.value)}
-                            placeholder="Tags separadas por vírgula"
-                            className="flex-1 px-3 py-1.5 text-sm rounded bg-background border border-border focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
-                            autoFocus
-                          />
-                          <Button
-                            size="sm"
-                            onClick={() => handleUpdateTags(doc.id)}
-                          >
-                            Salvar
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setEditingDoc(null);
-                              setEditTags('');
-                            }}
-                          >
-                            Cancelar
-                          </Button>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Nome do documento</label>
+                            <Input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              placeholder="Nome do documento"
+                              className="text-sm"
+                              autoFocus
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground mb-1 block">Tags (separadas por vírgula)</label>
+                            <Input
+                              type="text"
+                              value={editTags}
+                              onChange={(e) => setEditTags(e.target.value)}
+                              placeholder="Tag1, Tag2, Tag3"
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateDocument(doc.id)}
+                            >
+                              Salvar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingDoc(null);
+                                setEditName('');
+                                setEditTags('');
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-2">
@@ -236,12 +323,24 @@ const Documents = () => {
                       <Button
                         size="sm"
                         variant="ghost"
+                        onClick={() => handleReuploadClick(doc.id)}
+                        disabled={editingDoc !== null || reuploadingDoc !== null}
+                        className="p-2"
+                        title="Re-upload do documento"
+                      >
+                        <RefreshCw size={20} className={reuploadingDoc === doc.id ? 'animate-spin' : ''} />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => {
                           setEditingDoc(doc.id);
+                          setEditName(doc.original_name);
                           setEditTags(doc.tags?.join(', ') || '');
                         }}
                         disabled={editingDoc !== null}
                         className="p-2"
+                        title="Editar nome e tags"
                       >
                         <Edit size={20} />
                       </Button>
