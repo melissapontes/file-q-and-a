@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getTagColor } from "@/lib/tagColors";
 
 interface Document {
   id: string;
@@ -306,12 +307,20 @@ const Documents = () => {
                       ) : (
                         <div className="flex flex-wrap gap-2">
                           {doc.tags && doc.tags.length > 0 ? (
-                            doc.tags.map((tag, index) => (
-                              <Badge key={index} variant="secondary" className="gap-1 bg-tag text-tag-foreground border-tag/20">
-                                <Tag size={12} />
-                                {tag}
-                              </Badge>
-                            ))
+                            doc.tags.map((tag, index) => {
+                              const colors = getTagColor(tag);
+                              return (
+                                <Badge 
+                                  key={index} 
+                                  variant="secondary" 
+                                  className="gap-1 border-0"
+                                  style={{ backgroundColor: colors.bg, color: colors.fg }}
+                                >
+                                  <Tag size={12} />
+                                  {tag}
+                                </Badge>
+                              );
+                            })
                           ) : (
                             <span className="text-sm text-foreground/60 font-medium bg-muted px-2 py-1 rounded">Sem tags</span>
                           )}
