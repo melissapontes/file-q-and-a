@@ -213,50 +213,61 @@ serve(async (req) => {
           // Find matching document in Supabase data
           const docData = documentsWithTags.find(d => d.openai_file_id === vf.id);
           
-          // Score based on tags
+          // Score based on tags - HEAVILY WEIGHTED
+          let tagMatchCount = 0;
           if (docData && docData.tags.length > 0) {
             const tagMatches = docData.tags.filter(tag => 
               questionWords.some(word => tag.toLowerCase().includes(word))
             );
-            score += tagMatches.length * 10; // High weight for tag matches
+            tagMatchCount = tagMatches.length;
+            score += tagMatchCount * 100; // VERY HIGH weight for tag matches
+            
+            console.log(`Document "${vf.filename}": tags=${docData.tags}, matches=${tagMatchCount}, score_from_tags=${tagMatchCount * 100}`);
           }
           
-          // Score based on filename
-          const filenameMatches = questionWords.filter(word => nameLower.includes(word));
-          score += filenameMatches.length * 5; // Medium weight for filename matches
+          // Only use filename if no tag matches
+          if (tagMatchCount === 0) {
+            const filenameMatches = questionWords.filter(word => nameLower.includes(word));
+            score += filenameMatches.length * 10; // Lower weight if no tags match
+          }
           
-          // Special boost for known important terms
-          const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox'];
+          // Special boost for known important terms only if tags have relevance
+          const oxalateTerms = ['oxalato', 'oxalate', 'calcium_oxalate', 'caox', 'oxalate'];
           const canineTerms = ['canine', 'canino', 'cão', 'cao', 'cães', 'caes', 'dog', 'dogs'];
           
           const hasOxalate = oxalateTerms.some(t => qLower.includes(t));
           const isDogContext = canineTerms.some(t => qLower.includes(t));
           
-          if (hasOxalate) {
-            const nameHasOxalate = oxalateTerms.some(t => nameLower.includes(t));
-            const nameHasCanine = canineTerms.some(t => nameLower.includes(t));
-            const tagsHaveOxalate = docData?.tags.some(tag => 
+          if (hasOxalate && docData?.tags.length) {
+            const tagsHaveOxalate = docData.tags.some(tag => 
               oxalateTerms.some(t => tag.toLowerCase().includes(t))
             );
+            if (tagsHaveOxalate) score += 30;
             
-            if (nameHasOxalate || tagsHaveOxalate) score += 20;
-            if (isDogContext && nameHasCanine) score += 15;
+            const nameHasCanine = canineTerms.some(t => nameLower.includes(t));
+            const tagsHaveCanine = docData.tags.some(tag => 
+              canineTerms.some(t => tag.toLowerCase().includes(t))
+            );
+            if (isDogContext && (nameHasCanine || tagsHaveCanine)) score += 25;
           }
           
           return { id: vf.id, filename: vf.filename, score };
         });
         
-        // Sort by score and take top 10 (OpenAI API limit is 10 attachments per message)
+        // Sort by score - ONLY include documents with score > 0 (must have tag or filename match)
         scoredFiles.sort((a, b) => b.score - a.score);
-        preferredFileIds = scoredFiles
+        const relevantFiles = scoredFiles.filter(sf => sf.score > 0);
+        preferredFileIds = relevantFiles
           .slice(0, 10) // Max 10 attachments allowed by OpenAI API
           .map(sf => sf.id);
         
         if (preferredFileIds.length > 0) {
-          console.log(`Using top ${preferredFileIds.length} files from vector store (OpenAI max: 10 attachments):`);
-          scoredFiles.slice(0, 10).forEach(sf => {
+          console.log(`Using ${preferredFileIds.length} most relevant documents (filtered by tags):`);
+          relevantFiles.slice(0, 10).forEach(sf => {
             console.log(`  - ${sf.filename} (score: ${sf.score})`);
           });
+        } else {
+          console.log(`WARNING: No documents with relevant tags found. Using all documents for vector search.`);
         }
       }
     } else {
@@ -280,13 +291,14 @@ ${filesList}
 
 INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
 1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos disponíveis
-2. Busque extensivamente através de todo o vector store - múltiplos documentos podem conter informações sobre o mesmo tópico
-3. Quando o usuário perguntar sobre um tópico (ex: "DRC", "estágio 1", "lítios"), retorne informações de TODOS os documentos que contenham essas informações
-4. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações
-5. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
-6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
-7. SE O TEMA FOR OXALATO DE CÁLCIO EM CÃES, priorize e cite o(s) documento(s) com nomes semelhantes a "canine_calcium_oxalate_uroliths" quando disponíveis.
-8. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
+2. **IMPORTANTE**: Os documentos foram PRÉ-SELECIONADOS baseado em tags relevantes à pergunta do usuário
+3. Se um documento foi incluído, é porque suas tags combinam com o tópico - use-o como referência principal
+4. Busque extensivamente através dos documentos disponibilizados - eles são relevantes para a pergunta
+5. **SE A PERGUNTA FOR SOBRE UM TÓPICO ESPECÍFICO (ex: infecção urinária)**, use APENAS documentos com tags relacionadas
+6. NUNCA use documentos que não tenham tags relevantes ao tópico - mesmo que mencionem a palavra de passagem
+7. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
+8. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
+9. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
