@@ -8,7 +8,7 @@ const Index = () => {
     <div 
       className="min-h-screen"
       style={{
-        backgroundImage: "url('/ai-kidney-bg.svg')",
+        backgroundImage: "url('/ai-kidney-bg.png')",
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
@@ -88,7 +88,6 @@ const Index = () => {
         </div>
       </section>
 
-      </div>
     </div>
   );
 };
