@@ -246,16 +246,15 @@ serve(async (req) => {
           return { id: vf.id, filename: vf.filename, score };
         });
         
-        // Sort by score and take top candidates
+        // Sort by score and take top 10 (OpenAI API limit is 10 attachments per message)
         scoredFiles.sort((a, b) => b.score - a.score);
         preferredFileIds = scoredFiles
-          .filter(sf => sf.score > 0)
-          .slice(0, 5) // Limit to top 5 most relevant
+          .slice(0, 10) // Max 10 attachments allowed by OpenAI API
           .map(sf => sf.id);
         
         if (preferredFileIds.length > 0) {
-          console.log(`Prioritizing ${preferredFileIds.length} files based on tags and relevance:`);
-          scoredFiles.filter(sf => sf.score > 0).slice(0, 5).forEach(sf => {
+          console.log(`Using top ${preferredFileIds.length} files from vector store (OpenAI max: 10 attachments):`);
+          scoredFiles.slice(0, 10).forEach(sf => {
             console.log(`  - ${sf.filename} (score: ${sf.score})`);
           });
         }
@@ -280,16 +279,14 @@ serve(async (req) => {
 ${filesList}
 
 INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
-1. Você DEVE usar a ferramenta file_search para buscar nos documentos relevantes
-2. Quando o usuário pedir para listar documentos sobre um tópico específico (ex: "oxalato de cálcio"), você deve:
-   - Buscar APENAS documentos que contenham informações relevantes sobre esse tópico
-   - Retornar SOMENTE os documentos que realmente falam sobre o assunto solicitado
-   - NÃO retornar todos os documentos do vector store
-3. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações
-4. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
-5. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
-6. SE O TEMA FOR OXALATO DE CÁLCIO EM CÃES, priorize e cite o(s) documento(s) com nomes semelhantes a "canine_calcium_oxalate_uroliths" quando disponíveis.
-7. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
+1. Você DEVE usar a ferramenta file_search para buscar em TODOS os documentos disponíveis
+2. Busque extensivamente através de todo o vector store - múltiplos documentos podem conter informações sobre o mesmo tópico
+3. Quando o usuário perguntar sobre um tópico (ex: "DRC", "estágio 1", "lítios"), retorne informações de TODOS os documentos que contenham essas informações
+4. Se o usuário pedir uma informação específica, busque nos documentos e forneça a resposta com as citações
+5. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
+6. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
+7. SE O TEMA FOR OXALATO DE CÁLCIO EM CÃES, priorize e cite o(s) documento(s) com nomes semelhantes a "canine_calcium_oxalate_uroliths" quando disponíveis.
+8. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS**: Você DEVE avisar claramente ao usuário com uma mensagem como: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis." NÃO invente ou forneça informações que não estejam nos documentos.
 
 FORMATAÇÃO DA RESPOSTA:
 - Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
