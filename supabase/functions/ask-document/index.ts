@@ -173,6 +173,7 @@ serve(async (req) => {
     const vectorFiles: { id: string; filename: string }[] = [];
     // Files we want to prioritize for the current question (by heuristics)
     let preferredFileIds: string[] = [];
+    let fallbackInfo = ''; // Initialize fallback info variable
 
     if (filesResponse.ok) {
       const filesData = await filesResponse.json();
