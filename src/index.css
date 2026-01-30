@@ -84,7 +84,7 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 98%;
 
     --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted-foreground: 240 5% 85%;
 
     --accent: 200 58% 50%;
     --accent-foreground: 0 0% 98%;
@@ -93,7 +93,7 @@ All colors MUST be HSL.
     --destructive-foreground: 0 0% 98%;
 
     --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --input: 240 10% 12%;
     --ring: 174 74% 56%;
 
     /* Dark mode gradients */
