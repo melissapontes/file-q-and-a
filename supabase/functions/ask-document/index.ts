@@ -174,6 +174,7 @@ serve(async (req) => {
     // Files we want to prioritize for the current question (by heuristics)
     let preferredFileIds: string[] = [];
     let fallbackInfo = ''; // Initialize fallback info variable
+    let noRelevantDocs = false;
 
     if (filesResponse.ok) {
       const filesData = await filesResponse.json();
@@ -353,22 +354,18 @@ serve(async (req) => {
             // This ensures ONLY relevant documents are used
             console.log(`\n🎯 Using ONLY ${preferredFileIds.length} documents with tag matches (no fallback)`);
           } else {
-          // No relevant files found - use best available (max coverage mode)
-          preferredFileIds = allFiles
-            .slice(0, 10)
-            .map(sf => sf.id);
-          usedFallback = true;
+            // No relevant files found - do NOT attach unrelated documents
+            preferredFileIds = [];
+            usedFallback = true;
+            noRelevantDocs = true;
           
-          console.log(`⚠️ WARNING: No documents with relevant tags found!`);
-          console.log(`FALLBACK: Using top ${preferredFileIds.length} documents from entire vector store for maximum coverage:`);
-          allFiles.slice(0, 10).forEach(sf => {
-            console.log(`  [FALLBACK] ${sf.filename} (score: ${sf.score})`);
-          });
-        }
+            console.log(`⚠️ WARNING: No documents with relevant tags found!`);
+            console.log(`STRICT MODE: No attachments will be used to avoid incorrect citations.`);
+          }
         
         // Store fallback info for assistant message
-        const fallbackInfo = usedFallback 
-          ? `\n\n⚠️ NOTA INTERNA: Esta busca usou modo de cobertura máxima (fallback). Nem todos os documentos têm tags perfeitamente alinhadas com a pergunta.`
+        fallbackInfo = usedFallback 
+          ? `\n\n⚠️ NOTA INTERNA: Nenhum documento com tags relevantes foi encontrado. Esta consulta foi marcada como sem cobertura por tags.`
           : '';
         
         if (preferredFileIds.length > 0) {
@@ -377,6 +374,19 @@ serve(async (req) => {
       }
     } else {
       console.error('Could not list files:', await filesResponse.text());
+    }
+
+    // Short-circuit: no relevant documents by tags
+    if (noRelevantDocs) {
+      return new Response(
+        JSON.stringify({
+          answer: 'Desculpe, não encontrei documentos com tags relevantes para esta pergunta. Atualize as tags ou refine a pergunta.',
+          references: [],
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // Step 1: Create an Assistant with file_search
