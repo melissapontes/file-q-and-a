@@ -14,10 +14,12 @@ serve(async (req) => {
 
   try {
     console.log('Ask document function called');
+    console.log('Checking persistent assistant configuration...');
 
     // Get environment variables
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
+    const assistantId = Deno.env.get('OPENAI_ASSISTANT_ID'); // Persistent assistant ID
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -169,18 +171,44 @@ serve(async (req) => {
     console.log(`   OpenAI's file_search will automatically find the most relevant documents`);
     console.log(`   No pre-filtering by tags - pure semantic similarity matching\n`);
 
-    // Step 2: Create an Assistant with file_search using the MAIN vector store
-    console.log('Creating Assistant with semantic search...');
-    const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2',
-      },
-      body: JSON.stringify({
-        name: 'Nefrologia Veterinária RAG',
-        instructions: `Você é um assistente especializado em nefrologia veterinária com acesso a uma base de documentos científicos.
+    // Step 2: Get or create persistent Assistant
+    let assistant: any;
+    
+    if (assistantId) {
+      // Try to use existing assistant
+      console.log(`Using existing assistant: ${assistantId}`);
+      try {
+        const getAssistantResponse = await fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'OpenAI-Beta': 'assistants=v2',
+          },
+        });
+        
+        if (getAssistantResponse.ok) {
+          assistant = await getAssistantResponse.json();
+          console.log('✅ Reusing existing assistant');
+        } else {
+          console.log('⚠️ Assistant not found, will create new one');
+        }
+      } catch (e) {
+        console.log('⚠️ Error fetching assistant, will create new one:', e);
+      }
+    }
+    
+    // Create new assistant if needed
+    if (!assistant) {
+      console.log('Creating new persistent Assistant...');
+      const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+          'OpenAI-Beta': 'assistants=v2',
+        },
+        body: JSON.stringify({
+          name: 'Nefrologia Veterinária RAG',
+          instructions: `Você é um assistente especializado em nefrologia veterinária com acesso a uma base de documentos científicos.
 
 📚 ESTRATÉGIA DE BUSCA:
 - Você tem acesso a TODOS os documentos através de busca semântica (vector search)
@@ -220,26 +248,29 @@ serve(async (req) => {
 
 Se você não encontrar a informação específica após buscar, responda:
 "Desculpe, não encontrei informações específicas sobre [assunto] nos documentos disponíveis."`,
-        model: 'gpt-4o-mini',
-        tools: [{
-          type: 'file_search',
-        }],
-        tool_resources: {
-          file_search: { 
-            vector_store_ids: [vectorStoreId]  // Use MAIN vector store, not temporary
-          }
-        },
-      }),
-    });
+          model: 'gpt-4o-mini',
+          tools: [{
+            type: 'file_search',
+          }],
+          tool_resources: {
+            file_search: { 
+              vector_store_ids: [vectorStoreId]
+            }
+          },
+        }),
+      });
 
-    if (!assistantResponse.ok) {
-      const error = await assistantResponse.text();
-      console.error('Error creating assistant:', error);
-      throw new Error(`Erro ao criar assistente: ${error}`);
+      if (!assistantResponse.ok) {
+        const error = await assistantResponse.text();
+        console.error('Error creating assistant:', error);
+        throw new Error(`Erro ao criar assistente: ${error}`);
+      }
+
+      assistant = await assistantResponse.json();
+      console.log(`✅ New assistant created: ${assistant.id}`);
+      console.log(`⚠️ IMPORTANTE: Adicione esta variável de ambiente:`);
+      console.log(`   OPENAI_ASSISTANT_ID=${assistant.id}`);
     }
-
-    const assistant = await assistantResponse.json();
-    console.log('Assistant created:', assistant.id);
 
     // Step 3: Create a Thread
     console.log('Creating Thread...');
@@ -440,21 +471,11 @@ Se você não encontrar a informação específica após buscar, responda:
 
     console.log('Response retrieved successfully');
 
-    // Cleanup: Delete the assistant
-    try {
-      await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
-      });
-      console.log('Assistant deleted');
-    } catch (e) {
-      console.log('Could not delete assistant:', e);
-    }
+    // Assistant is now persistent - no deletion needed
+    console.log('Using persistent assistant - keeping alive for future requests');
 
     console.log('Generated answer successfully');
+
 
     // Save query log to database for analysis
     if (supabaseUrl && supabaseServiceKey) {
