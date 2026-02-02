@@ -279,15 +279,50 @@ serve(async (req) => {
         const vectorStoreData = await vectorStoreResponse.json();
         console.log('File added to vector store:', vectorStoreData.id);
 
-        // Update document record with success
+        // Update document record with OpenAI IDs
         await supabase
           .from('documents')
           .update({
             openai_file_id: openaiFileData.id,
             vector_store_file_id: vectorStoreData.id,
-            processing_status: 'completed'
+            processing_status: 'processing_chunks'
           })
           .eq('id', documentRecord.id);
+
+        // NOW: Process document for pgvector (chunking + embeddings)
+        console.log('Starting pgvector processing...');
+        try {
+          const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-document`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              documentId: documentRecord.id
+            }),
+          });
+
+          if (processResponse.ok) {
+            const processData = await processResponse.json();
+            console.log(`✅ pgvector processing completed: ${processData.chunks_created} chunks created`);
+            
+            // Update to completed
+            await supabase
+              .from('documents')
+              .update({
+                processing_status: 'completed'
+              })
+              .eq('id', documentRecord.id);
+          } else {
+            const processError = await processResponse.text();
+            console.error('⚠️ pgvector processing failed:', processError);
+            throw new Error(`Chunk processing failed: ${processError}`);
+          }
+        } catch (processError) {
+          console.error('⚠️ Error calling process-document:', processError);
+          throw processError;
+        }
 
         console.log('Document processing completed successfully');
 
