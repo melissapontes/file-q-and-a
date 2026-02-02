@@ -186,17 +186,28 @@ const Ask = () => {
                     <div
                       className={`p-3 sm:p-5 rounded-2xl break-words overflow-hidden ${
                         message.sender === 'user'
-                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[85%] sm:max-w-[80%]'
+                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[85%] sm:max-w-[80%] text-foreground'
                           : 'bg-secondary/50 flex-1 min-w-0'
                       }`}
-                      style={message.sender === 'user' ? { color: '#FFFFFF' } : {}}
                     >
                       <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">
                         {message.sender === 'ai' ? (
                           <ReactMarkdown
                             components={{
                               p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
-                              strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
+                              strong: ({ children }) => {
+                                // Se o conteúdo dentro do strong é uma citação [arquivo.pdf], não usa negrito
+                                const text = String(children);
+                                if (text.match(/^\[.*\.pdf\]$/)) {
+                                  return (
+                                    <>
+                                      <br />
+                                      <span className="font-normal text-muted-foreground text-[11px] block mt-1">{children}</span>
+                                    </>
+                                  );
+                                }
+                                return <strong className="font-bold text-foreground">{children}</strong>;
+                              },
                               em: ({ children }) => <em className="italic">{children}</em>,
                               ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-1">{children}</ul>,
                               ol: ({ children }) => <ol className="list-decimal list-outside ml-5 mb-4 space-y-2">{children}</ol>,
@@ -213,14 +224,14 @@ const Ask = () => {
                       </div>
                       
                       {message.references && message.references.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-border/50">
+                        <div className="mt-6 pt-4 border-t border-border/30">
                           <div className="flex items-center gap-2 mb-2">
-                            <FileText size={14} className="text-muted-foreground" />
-                            <span className="text-xs font-semibold text-muted-foreground">Referências:</span>
+                            <FileText size={11} className="text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground">Referências:</span>
                           </div>
                           <div className="space-y-1">
                             {message.references.map((ref, idx) => (
-                              <p key={idx} className="text-xs text-muted-foreground pl-4">
+                              <p key={idx} className="text-[10px] text-muted-foreground pl-4 font-normal leading-relaxed">
                                 {idx + 1}. {ref}
                               </p>
                             ))}

@@ -207,12 +207,14 @@ serve(async (req) => {
 📝 FORMATAÇÃO:
 - Organize em tópicos numerados (1., 2., 3.)
 - Linha em branco entre tópicos
-- Cite a fonte em negrito no final de cada informação: **[nome_do_arquivo.pdf]**
+- Cite a fonte IMEDIATAMENTE após cada informação, SEM negrito: [nome_do_arquivo.pdf]
+- A citação deve aparecer na mesma linha ou logo após o texto que a referencia
 - Se usar múltiplas fontes, cite todas
 
 🚫 O QUE NÃO FAZER:
 - NÃO invente informações que não estão nos documentos
 - NÃO use IDs de arquivo (file-xxxxx) - sempre use o nome real do PDF
+- NÃO use **negrito** ou qualquer formatação nas citações, apenas colchetes simples: [arquivo.pdf]
 - NÃO dê diagnósticos definitivos - forneça informação educacional
 - NÃO generalize quando o documento tem valores específicos
 
