@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const DebugVectorStore = () => {
   const [vectorStoreFiles, setVectorStoreFiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [vectorStoreId, setVectorStoreId] = useState<string>('');
   const { toast } = useToast();
 
   const checkVectorStore = async () => {
@@ -18,6 +19,7 @@ export const DebugVectorStore = () => {
       
       console.log('Vector Store Files:', data);
       setVectorStoreFiles(data.files || []);
+      setVectorStoreId(data.vectorStoreId || '');
       
       toast({
         title: "Sucesso",
@@ -42,6 +44,13 @@ export const DebugVectorStore = () => {
         {loading ? "Checando..." : "Ver Arquivos do Vector Store"}
       </Button>
       
+      {vectorStoreId && (
+        <div className="mt-4 text-sm">
+          <span className="text-muted-foreground">Vector Store ID:</span>{" "}
+          <span className="font-mono text-xs break-all">{vectorStoreId}</span>
+        </div>
+      )}
+
       {vectorStoreFiles.length > 0 && (
         <div className="mt-4 space-y-2 max-h-96 overflow-auto">
           {vectorStoreFiles.map((file: any) => (
