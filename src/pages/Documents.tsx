@@ -154,21 +154,34 @@ const Documents = () => {
   };
 
   const handleDelete = async (docId: string) => {
-    if (!confirm('Tem certeza que deseja excluir este documento?')) {
+    if (!confirm('Tem certeza que deseja excluir este documento? Esta ação irá remover o documento, seus chunks e arquivos associados.')) {
       return;
     }
 
     try {
-      const { error } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', docId);
+      // Call Edge Function to delete everything properly
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${supabase.supabaseUrl}/functions/v1/delete-document`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ documentId: docId }),
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to delete document');
+      }
 
       toast({
         title: "Documento excluído!",
-        description: "O documento foi removido com sucesso.",
+        description: "O documento e todos os dados associados foram removidos com sucesso.",
       });
 
       fetchDocuments();
@@ -176,7 +189,7 @@ const Documents = () => {
       console.error('Error deleting document:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível excluir o documento.",
+        description: error instanceof Error ? error.message : "Não foi possível excluir o documento.",
         variant: "destructive",
       });
     }
