@@ -9,7 +9,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTagColor } from "@/lib/tagColors";
-import { DebugVectorStore } from "@/components/DebugVectorStore";
 
 interface Document {
   id: string;
@@ -371,10 +370,6 @@ const Documents = () => {
           )}
         </Card>
 
-        {/* Debug Vector Store */}
-        <div className="mt-8">
-          <DebugVectorStore />
-        </div>
       </div>
     </div>
   );

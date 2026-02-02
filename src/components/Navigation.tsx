@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText } from "lucide-react";
+import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText, Bug } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import ThemeToggle from "./ThemeToggle";
 import logo from "@/assets/logo.png";
@@ -14,6 +14,7 @@ const Navigation = () => {
     { path: "/upload", label: "Upload", icon: Upload },
     { path: "/documents", label: "Documentos", icon: FileText },
     { path: "/ask", label: "Pergunte", icon: MessageCircle },
+    { path: "/debug", label: "Debug", icon: Bug },
   ];
 
   return (
