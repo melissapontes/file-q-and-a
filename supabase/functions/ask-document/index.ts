@@ -20,6 +20,7 @@ serve(async (req) => {
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
     const assistantId = Deno.env.get('OPENAI_ASSISTANT_ID'); // Persistent assistant ID
+    const assistantModel = 'gpt-4o';
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -188,6 +189,28 @@ serve(async (req) => {
         if (getAssistantResponse.ok) {
           assistant = await getAssistantResponse.json();
           console.log('✅ Reusing existing assistant');
+          if (assistant?.model !== assistantModel) {
+            console.log(`🔄 Updating assistant model from ${assistant?.model} to ${assistantModel}`);
+            const updateAssistantResponse = await fetch(`https://api.openai.com/v1/assistants/${assistantId}`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+                'OpenAI-Beta': 'assistants=v2',
+              },
+              body: JSON.stringify({
+                model: assistantModel,
+              }),
+            });
+
+            if (updateAssistantResponse.ok) {
+              assistant = await updateAssistantResponse.json();
+              console.log('✅ Assistant model updated');
+            } else {
+              const error = await updateAssistantResponse.text();
+              console.log('⚠️ Failed to update assistant model:', error);
+            }
+          }
         } else {
           console.log('⚠️ Assistant not found, will create new one');
         }
@@ -248,7 +271,7 @@ serve(async (req) => {
 
 Se você não encontrar a informação específica após buscar, responda:
 "Desculpe, não encontrei informações específicas sobre [assunto] nos documentos disponíveis."`,
-          model: 'gpt-4o-mini',
+          model: assistantModel,
           tools: [{
             type: 'file_search',
           }],
