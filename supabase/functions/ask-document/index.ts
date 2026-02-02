@@ -133,8 +133,15 @@ serve(async (req) => {
     console.log('Processing question:', question);
     console.log(`Using vector store: ${vectorStoreId}`);
 
-    // Fetch documents with tags from Supabase
-    let documentsWithTags: { openai_file_id: string; tags: string[]; original_name: string }[] = [];
+    // Query logging data
+    let queryLogData: any = {
+      documents_fetched: 0,
+      documents_analyzed: [],
+      final_selection: 'all_via_semantic_search'
+    };
+
+    // Fetch document metadata from Supabase for logging purposes only
+    let documentsMetadata: { openai_file_id: string; original_name: string }[] = [];
     if (supabaseUrl && supabaseServiceKey) {
       try {
         const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
@@ -142,336 +149,28 @@ serve(async (req) => {
         
         const { data, error } = await supabase
           .from('documents')
-          .select('openai_file_id, tags, original_name')
-          .eq('processing_status', 'completed')
+          .select('openai_file_id, original_name')
           .not('openai_file_id', 'is', null);
         
         if (!error && data) {
-          documentsWithTags = data.map(doc => ({
+          documentsMetadata = data.map(doc => ({
             openai_file_id: doc.openai_file_id!,
-            tags: doc.tags || [],
             original_name: doc.original_name
           }));
-          console.log(`Fetched ${documentsWithTags.length} documents with tags from Supabase`);
+          queryLogData.documents_fetched = documentsMetadata.length;
+          console.log(`📚 Total documents available: ${documentsMetadata.length}`);
         }
       } catch (e) {
-        console.error('Error fetching documents from Supabase:', e);
+        console.error('Error fetching documents metadata:', e);
       }
     }
 
-    // Step 0: List all files in the vector store
-    console.log('Listing all files in vector store...');
-    const filesResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'OpenAI-Beta': 'assistants=v2',
-      },
-    });
+    console.log(`\n🔍 Search strategy: Using semantic vector search across ALL documents`);
+    console.log(`   OpenAI's file_search will automatically find the most relevant documents`);
+    console.log(`   No pre-filtering by tags - pure semantic similarity matching\n`);
 
-    let filesList = 'Arquivos disponíveis no vector store: (nenhum encontrado)';
-    // Files present in the vector store with their human filenames
-    const vectorFiles: { vectorStoreFileId: string; fileId: string; filename: string }[] = [];
-    // Files we want to prioritize for the current question (by heuristics)
-    let preferredFileIds: string[] = [];
-    let fallbackInfo = ''; // Initialize fallback info variable
-    let noRelevantDocs = false;
-
-    if (filesResponse.ok) {
-      const filesData = await filesResponse.json();
-      if (filesData.data && filesData.data.length > 0) {
-        const fileRefs: { vectorStoreFileId: string; fileId: string }[] = filesData.data.map((f: any) => ({
-          vectorStoreFileId: f.id,
-          fileId: f.file_id ?? f.id,
-        }));
-
-        // Fetch filenames for each file id so we can apply simple heuristics
-        for (const ref of fileRefs) {
-          try {
-            const fr = await fetch(`https://api.openai.com/v1/files/${ref.fileId}`, {
-              headers: { 'Authorization': `Bearer ${openaiApiKey}` },
-            });
-            if (fr.ok) {
-              const fd = await fr.json();
-              vectorFiles.push({
-                vectorStoreFileId: ref.vectorStoreFileId,
-                fileId: ref.fileId,
-                filename: fd.filename || ref.fileId,
-              });
-            } else {
-              vectorFiles.push({
-                vectorStoreFileId: ref.vectorStoreFileId,
-                fileId: ref.fileId,
-                filename: ref.fileId,
-              });
-            }
-          } catch {
-            vectorFiles.push({
-              vectorStoreFileId: ref.vectorStoreFileId,
-              fileId: ref.fileId,
-              filename: ref.fileId,
-            });
-          }
-        }
-
-        filesList = `Arquivos disponíveis no vector store (${vectorFiles.length} arquivos): ${vectorFiles.map(f => f.fileId).join(', ')}`;
-        console.log(filesList);
-
-        // Enhanced heuristic using tags and filename matching
-        const qLower = question.toLowerCase();
-        
-        // Normalize function - removes accents, spaces, underscores, special chars
-        const normalize = (str: string) => {
-          return str
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // Remove accents
-            .replace(/[_\-\s]+/g, '') // Remove spaces, underscores, hyphens
-            .replace(/[^\w]/g, ''); // Remove special chars
-        };
-        
-        // Extract potential keywords from the question (longer and more flexible)
-        const questionWords = qLower
-          .split(/\s+/)
-          .filter(w => w.length > 2); // Lower threshold to catch more words
-        
-        const normalizedQuestion = normalize(qLower);
-        
-        console.log(`\n🔍 Question analysis:`);
-        console.log(`  Original: "${question}"`);
-        console.log(`  Keywords: [${questionWords.join(', ')}]`);
-        console.log(`  Normalized: "${normalizedQuestion}"`);
-        
-        // Score each document based on tag and filename relevance
-        const scoredFiles = vectorFiles.map(vf => {
-          let score = 0;
-          let scoreFromTags = 0;
-          const nameLower = vf.filename.toLowerCase();
-          
-          // Find matching document in Supabase data (OpenAI file id)
-          const docData = documentsWithTags.find(d => d.openai_file_id === vf.fileId);
-          
-          // Score based on tags - HEAVILY WEIGHTED with flexible matching
-          let tagMatchCount = 0;
-          let matchedTags: string[] = [];
-          
-          if (docData && docData.tags.length > 0) {
-            console.log(`\n📄 Analyzing "${vf.filename}"`);
-            console.log(`  Tags: [${docData.tags.join(', ')}]`);
-            
-            // Check each tag against question (ignore empty/too-short tags)
-            docData.tags.forEach(tag => {
-              const normalizedTag = normalize(tag);
-              if (!normalizedTag || normalizedTag.length < 3) {
-                return;
-              }
-              let matched = false;
-              
-              // Strategy 1: Check if normalized question contains normalized tag
-              if (normalizedQuestion.includes(normalizedTag)) {
-                matched = true;
-                score += 100;
-                scoreFromTags += 100;
-                console.log(`  ✅ FULL MATCH: "${tag}" found in question`);
-              }
-              
-              // Strategy 2: Check if normalized tag contains any question word
-              if (!matched) {
-                for (const word of questionWords) {
-                  const normalizedWord = normalize(word);
-                  if (!normalizedWord || normalizedWord.length < 3) {
-                    continue;
-                  }
-                  if (normalizedTag.includes(normalizedWord) || normalizedWord.includes(normalizedTag)) {
-                    matched = true;
-                    score += 80;
-                    scoreFromTags += 80;
-                    console.log(`  ✅ PARTIAL MATCH: tag "${tag}" matches word "${word}"`);
-                    break;
-                  }
-                }
-              }
-              
-              // Strategy 3: Check individual words in tag
-              if (!matched) {
-                const tagWords = tag.toLowerCase().split(/[_\-\s]+/);
-                for (const tagWord of tagWords) {
-                  const normalizedTagWord = normalize(tagWord);
-                  if (normalizedTagWord.length > 2 && normalizedQuestion.includes(normalizedTagWord)) {
-                    matched = true;
-                    score += 50;
-                    scoreFromTags += 50;
-                    console.log(`  ✅ WORD MATCH: tag word "${tagWord}" from "${tag}" found`);
-                    break;
-                  }
-                }
-              }
-              
-              if (matched) {
-                tagMatchCount++;
-                matchedTags.push(tag);
-              }
-            });
-            
-            if (tagMatchCount > 0) {
-              console.log(`  🎯 Total score from tags: ${score} (${tagMatchCount} matches)`);
-            } else {
-              console.log(`  ❌ No tag matches`);
-            }
-          }
-          
-          // Filename matching (lower priority) - DO NOT use for eligibility
-          if (tagMatchCount === 0) {
-            const filenameMatches = questionWords.filter(word => nameLower.includes(word));
-            if (filenameMatches.length > 0) {
-              console.log(`  📝 Filename matches (ignored for eligibility): ${filenameMatches.length} words`);
-            }
-          }
-          
-          return { id: vf.fileId, filename: vf.filename, score, scoreFromTags, tagMatchCount, matchedTags };
-        });
-        
-        // Sort by score - Get both relevant and non-relevant files
-        scoredFiles.sort((a, b) => b.score - a.score);
-        const relevantFiles = scoredFiles.filter(sf => sf.tagMatchCount > 0);
-        const allFiles = scoredFiles;
-        
-        console.log(`\n📊 Scoring results:`);
-        console.log(`  Relevant files (tag matches > 0): ${relevantFiles.length}`);
-        console.log(`  Total files: ${allFiles.length}`);
-        
-        let hasRelevantTagMatches = false;
-        let usedFallback = false;
-        
-        // FALLBACK STRATEGY: Maximize coverage
-        if (relevantFiles.length > 0) {
-          // Priority: Use relevant files first
-          preferredFileIds = relevantFiles
-            .slice(0, 10)
-            .map(sf => sf.id);
-          hasRelevantTagMatches = true;
-          
-          console.log(`\n✅ Using ${preferredFileIds.length} documents with relevant tags:`);
-          relevantFiles.slice(0, 10).forEach(sf => {
-            const matchInfo = sf.matchedTags && sf.matchedTags.length > 0 
-              ? ` [Tags: ${sf.matchedTags.join(', ')}]`
-              : '';
-            console.log(`  [TAG MATCH] ${sf.filename} (score: ${sf.score})${matchInfo}`);
-          });
-          
-          // If we have room (less than 10), fill remaining slots with other documents
-          if (relevantFiles.length < 10 && allFiles.length > relevantFiles.length) {
-            const remainingSlots = 10 - relevantFiles.length;
-            const otherFiles = allFiles
-              .filter(sf => sf.score === 0) // Documents without tag matches
-              .slice(0, remainingSlots);
-            
-            preferredFileIds.push(...otherFiles.map(sf => sf.id));
-            usedFallback = true;
-            
-            console.log(`\n⚠️ FALLBACK: Filling ${otherFiles.length} remaining slots with documents without tag matches:`);
-            otherFiles.forEach(sf => {
-              console.log(`  [NO TAG] ${sf.filename} (score: ${sf.score})`);
-            });
-          }
-        
-            // NO FALLBACK - We do NOT fill empty slots with untagged documents
-            // This ensures ONLY relevant documents are used
-            console.log(`\n🎯 Using ONLY ${preferredFileIds.length} documents with tag matches (no fallback)`);
-          } else {
-            // No relevant files found - do NOT attach unrelated documents
-            preferredFileIds = [];
-            usedFallback = true;
-            noRelevantDocs = true;
-          
-            console.log(`⚠️ WARNING: No documents with relevant tags found!`);
-            console.log(`STRICT MODE: No attachments will be used to avoid incorrect citations.`);
-          }
-        
-        // Store fallback info for assistant message
-        fallbackInfo = usedFallback 
-          ? `\n\n⚠️ NOTA INTERNA: Nenhum documento com tags relevantes foi encontrado. Esta consulta foi marcada como sem cobertura por tags.`
-          : '';
-        
-        if (preferredFileIds.length > 0) {
-          console.log(`\n✅ Final selection: ${preferredFileIds.length} documents ready for search`);
-        }
-      }
-    } else {
-      console.error('Could not list files:', await filesResponse.text());
-    }
-
-    // Short-circuit: no relevant documents by tags
-    if (noRelevantDocs) {
-      return new Response(
-        JSON.stringify({
-          answer: 'Desculpe, não encontrei documentos com tags relevantes para esta pergunta. Atualize as tags ou refine a pergunta.',
-          references: [],
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // Step 1: Create a temporary vector store with ONLY selected files
-    let tempVectorStoreId: string | null = null;
-    if (preferredFileIds.length > 0) {
-      try {
-        const vsResponse = await fetch('https://api.openai.com/v1/vector_stores', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-            'OpenAI-Beta': 'assistants=v2',
-          },
-          body: JSON.stringify({
-            name: `temp-rag-${crypto.randomUUID()}`,
-          }),
-        });
-
-        if (!vsResponse.ok) {
-          const errorText = await vsResponse.text();
-          throw new Error(`Failed to create temp vector store: ${errorText}`);
-        }
-
-        const vsData = await vsResponse.json();
-        tempVectorStoreId = vsData.id;
-        console.log(`Created temporary vector store: ${tempVectorStoreId}`);
-
-        // Add ONLY selected files to the temporary vector store
-        for (const fileId of preferredFileIds) {
-          const addFileResponse = await fetch(`https://api.openai.com/v1/vector_stores/${tempVectorStoreId}/files`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-              'OpenAI-Beta': 'assistants=v2',
-            },
-            body: JSON.stringify({ file_id: fileId }),
-          });
-
-          if (!addFileResponse.ok) {
-            const errorText = await addFileResponse.text();
-            throw new Error(`Failed to add file ${fileId} to temp vector store: ${errorText}`);
-          }
-        }
-      } catch (e) {
-        console.error('Error creating temporary vector store:', e);
-        // Fall back to no response if temp store cannot be created
-        return new Response(
-          JSON.stringify({
-            answer: 'Desculpe, ocorreu um erro ao preparar os documentos para a busca. Tente novamente em alguns instantes.',
-            references: [],
-          }),
-          {
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        );
-      }
-    }
-
-    // Step 2: Create an Assistant with file_search
-    console.log('Creating Assistant...');
+    // Step 2: Create an Assistant with file_search using the MAIN vector store
+    console.log('Creating Assistant with semantic search...');
     const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
       method: 'POST',
       headers: {
@@ -481,37 +180,53 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         name: 'Nefrologia Veterinária RAG',
-        instructions: `Você é um assistente especializado em nefrologia veterinária. 
+        instructions: `Você é um assistente especializado em nefrologia veterinária com acesso a uma base de documentos científicos.
 
-${filesList}
-${fallbackInfo}
+📚 ESTRATÉGIA DE BUSCA:
+- Você tem acesso a TODOS os documentos através de busca semântica (vector search)
+- O sistema automaticamente encontrará os documentos MAIS RELEVANTES para cada pergunta
+- Use a ferramenta file_search para buscar informações nos documentos
+- A busca é baseada em similaridade semântica, não em palavras-chave exatas
 
-INSTRUÇÕES CRÍTICAS SOBRE BUSCA:
-1. **ATENÇÃO**: Você receberá APENAS os documentos relevantes anexados à mensagem
-2. **NÃO busque em outros documentos** - use SOMENTE os arquivos que foram anexados
-3. Os documentos foram PRÉ-SELECIONADOS baseado em tags que combinam perfeitamente com a pergunta
-4. Se um documento foi anexado, é porque ele É relevante para o tópico
-5. **RESTRIÇÃO CRÍTICA**: Cite APENAS documentos que foram anexados à conversa
-6. Se a informação não estiver nos documentos anexados, diga claramente ao usuário
-7. SEMPRE cite o nome completo do arquivo (não use IDs como "file-Aifp6BUxhj2YTcMvftEYPU")
-8. NUNCA dê diagnósticos definitivos - apenas forneça informações educacionais baseadas nos documentos
-9. **SE A INFORMAÇÃO NÃO FOR ENCONTRADA NOS DOCUMENTOS ANEXADOS**: Diga: "Desculpe, não encontrei informações sobre [assunto] nos documentos disponíveis para esta consulta."
+🎯 INSTRUÇÕES DE RESPOSTA:
+1. **BUSQUE ATIVAMENTE**: Use file_search para encontrar informações relevantes nos documentos
+2. **CITE AS FONTES**: Sempre mencione o nome completo do arquivo PDF de onde veio cada informação
+3. **SEJA ESPECÍFICO**: Forneça detalhes exatos - dosagens, frequências, durações, marcas, valores
+4. **SEJA PRECISO**: Baseie-se APENAS no que está escrito nos documentos
+5. **SEJA HONESTO**: Se não encontrar informação específica, diga claramente
 
-FORMATAÇÃO DA RESPOSTA:
-- Organize SEMPRE sua resposta em tópicos numerados (1., 2., 3., etc.)
-- Deixe uma linha em branco entre cada tópico numerado
-- Coloque o texto logo após o número, na mesma linha (exemplo: "1. Texto do tópico")
-- Ao citar a fonte, coloque em negrido logo após a informação no mesmo parágrafo
-- Na seção de documentos utilizados, informe o nome completo do arquivo PDF
+⚠️ DETALHAMENTO OBRIGATÓRIO (quando a informação existir no documento):
+- **Medicamentos**: Nome completo, dosagem (mg/kg), via de administração, frequência, duração
+  Exemplo: "Citrato de potássio, **2-3 mEq/kg/dia**, via oral, dividido em 2-3 doses"
+- **Rações**: Marca e linha específica se mencionada
+  Exemplo: "Hill's Prescription Diet k/d" ou "rações renais terapêuticas"
+- **Exames**: Valores de referência, unidades, método quando disponível
+- **Tratamentos**: Protocolo completo com todas as etapas
+- Use **negrito** para destacar valores numéricos importantes
 
-IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que foi perguntado.`,
+📝 FORMATAÇÃO:
+- Organize em tópicos numerados (1., 2., 3.)
+- Linha em branco entre tópicos
+- Cite a fonte em negrito no final de cada informação: **[nome_do_arquivo.pdf]**
+- Se usar múltiplas fontes, cite todas
+
+🚫 O QUE NÃO FAZER:
+- NÃO invente informações que não estão nos documentos
+- NÃO use IDs de arquivo (file-xxxxx) - sempre use o nome real do PDF
+- NÃO dê diagnósticos definitivos - forneça informação educacional
+- NÃO generalize quando o documento tem valores específicos
+
+Se você não encontrar a informação específica após buscar, responda:
+"Desculpe, não encontrei informações específicas sobre [assunto] nos documentos disponíveis."`,
         model: 'gpt-4o-mini',
         tools: [{
           type: 'file_search',
         }],
-        tool_resources: tempVectorStoreId
-          ? { file_search: { vector_store_ids: [tempVectorStoreId] } }
-          : undefined,
+        tool_resources: {
+          file_search: { 
+            vector_store_ids: [vectorStoreId]  // Use MAIN vector store, not temporary
+          }
+        },
       }),
     });
 
@@ -524,7 +239,7 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
     const assistant = await assistantResponse.json();
     console.log('Assistant created:', assistant.id);
 
-    // Step 2: Create a Thread
+    // Step 3: Create a Thread
     console.log('Creating Thread...');
     const threadResponse = await fetch('https://api.openai.com/v1/threads', {
       method: 'POST',
@@ -545,7 +260,7 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
     const thread = await threadResponse.json();
     console.log('Thread created:', thread.id);
 
-    // Step 3: Add user message to Thread (with attached files and image context)
+    // Step 4: Add user message to Thread (with image context if available)
     console.log('Adding message to thread...');
     
     // Combine question with image context if available
@@ -560,19 +275,13 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
       content: fullQuestion
     };
 
-    // Attachments are not needed when using temporary vector store
-    const allAttachments: any[] = [];
-
-    // Then attach any ad-hoc files uploaded with the question
+    // Attach ad-hoc files uploaded with the question (if any)
     if (uploadedFileIds.length > 0) {
-      allAttachments.push(
-        ...uploadedFileIds.map(fileId => ({ file_id: fileId, tools: [{ type: 'file_search' }] }))
-      );
-    }
-
-    if (allAttachments.length > 0) {
-      messageBody.attachments = allAttachments;
-      console.log(`Attaching ${allAttachments.length} files to message (preferred: ${preferredFileIds?.length || 0}, uploaded: ${uploadedFileIds.length})`);
+      messageBody.attachments = uploadedFileIds.map(fileId => ({ 
+        file_id: fileId, 
+        tools: [{ type: 'file_search' }] 
+      }));
+      console.log(`Attaching ${uploadedFileIds.length} additional files to message`);
     }
 
     const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
@@ -593,8 +302,8 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
 
     console.log('Message added to thread');
 
-    // Step 4: Run the Assistant
-    console.log('Running assistant...');
+    // Step 5: Run the Assistant
+    console.log('Running assistant with semantic search...');
     const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
       method: 'POST',
       headers: {
@@ -616,10 +325,10 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
     const run = await runResponse.json();
     console.log('Run started:', run.id);
 
-    // Step 5: Poll for completion
+    // Step 6: Poll for completion
     let runStatus = run.status;
     let attempts = 0;
-    const maxAttempts = 30; // 30 seconds max
+    const maxAttempts = 120; // 120 seconds max for thorough semantic search
 
     while (runStatus !== 'completed' && runStatus !== 'failed' && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
@@ -651,7 +360,7 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
       throw new Error('Timeout: O assistente demorou muito para responder');
     }
 
-    // Step 6: Get the assistant's response
+    // Step 7: Get the assistant's response
     console.log('Retrieving assistant response...');
     const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
       headers: {
@@ -729,7 +438,7 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
 
     console.log('Response retrieved successfully');
 
-    // Cleanup: Delete the assistant (optional, to avoid accumulating assistants)
+    // Cleanup: Delete the assistant
     try {
       await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
         method: 'DELETE',
@@ -743,23 +452,34 @@ IMPORTANTE: Seja preciso e retorne apenas informações relevantes para o que fo
       console.log('Could not delete assistant:', e);
     }
 
-    // Cleanup: Delete temporary vector store
-    if (tempVectorStoreId) {
+    console.log('Generated answer successfully');
+
+    // Save query log to database for analysis
+    if (supabaseUrl && supabaseServiceKey) {
       try {
-        await fetch(`https://api.openai.com/v1/vector_stores/${tempVectorStoreId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'OpenAI-Beta': 'assistants=v2',
-          },
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        
+        const answerPreview = answer.substring(0, 500) + (answer.length > 500 ? '...' : '');
+        
+        const { error } = await supabase.from('rag_query_logs').insert({
+          question,
+          documents_fetched: queryLogData.documents_fetched,
+          documents_analyzed: queryLogData.documents_analyzed,
+          final_selection: queryLogData.final_selection,
+          answer_preview: answerPreview,
+          status: 'success'
         });
-        console.log('Temporary vector store deleted');
+        
+        if (error) {
+          console.error('Error saving query log:', error);
+        } else {
+          console.log('Query log saved successfully');
+        }
       } catch (e) {
-        console.log('Could not delete temporary vector store:', e);
+        console.log('Could not save query log:', e);
       }
     }
-
-    console.log('Generated answer successfully');
 
     // Cleanup uploaded files
     if (uploadedFileIds.length > 0) {
