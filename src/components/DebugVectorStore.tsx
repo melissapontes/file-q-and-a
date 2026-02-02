@@ -45,10 +45,12 @@ export const DebugVectorStore = () => {
       {vectorStoreFiles.length > 0 && (
         <div className="mt-4 space-y-2 max-h-96 overflow-auto">
           {vectorStoreFiles.map((file: any) => (
-            <div key={file.id} className="p-2 bg-secondary rounded text-sm">
-              <p className="font-mono text-xs">{file.filename}</p>
-              <p className="text-xs text-muted-foreground">ID: {file.id}</p>
-              <p className="text-xs text-muted-foreground">Status: {file.status}</p>
+            <div key={file.id} className="p-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded text-sm">
+              <p className="font-mono text-xs text-gray-900 dark:text-gray-100 font-semibold">
+                {file.filename || "Sem nome do arquivo"}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">ID: {file.id}</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Status: {file.status}</p>
             </div>
           ))}
         </div>

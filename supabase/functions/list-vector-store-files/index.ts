@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,8 +11,6 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
 
@@ -37,12 +34,43 @@ serve(async (req) => {
 
     const data = await response.json();
 
+    const files = Array.isArray(data.data) ? data.data : [];
+
+    const filesWithNames = await Promise.all(
+      files.map(async (file: { id: string; file_id?: string }) => {
+        const fileId = file.file_id || file.id;
+        let filename = null;
+
+        try {
+          const fileResponse = await fetch(`https://api.openai.com/v1/files/${fileId}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+            },
+          });
+
+          if (fileResponse.ok) {
+            const fileData = await fileResponse.json();
+            filename = fileData.filename || null;
+          }
+        } catch (error) {
+          console.error('Error fetching file metadata:', error);
+        }
+
+        return {
+          ...file,
+          file_id: fileId,
+          filename,
+        };
+      })
+    );
+
     return new Response(
       JSON.stringify({
         success: true,
         vectorStoreId,
-        files: data.data,
-        totalFiles: data.data.length
+        files: filesWithNames,
+        totalFiles: filesWithNames.length
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
