@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      document_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string | null
+          document_id: string
+          embedding: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string | null
+          document_id: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string | null
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string
@@ -65,12 +103,65 @@ export type Database = {
         }
         Relationships: []
       }
+      rag_query_logs: {
+        Row: {
+          answer_preview: string | null
+          created_at: string | null
+          documents_analyzed: Json | null
+          documents_fetched: number | null
+          final_selection: Json | null
+          id: string
+          processing_time_ms: number | null
+          question: string
+          status: string | null
+        }
+        Insert: {
+          answer_preview?: string | null
+          created_at?: string | null
+          documents_analyzed?: Json | null
+          documents_fetched?: number | null
+          final_selection?: Json | null
+          id?: string
+          processing_time_ms?: number | null
+          question: string
+          status?: string | null
+        }
+        Update: {
+          answer_preview?: string | null
+          created_at?: string | null
+          documents_analyzed?: Json | null
+          documents_fetched?: number | null
+          final_selection?: Json | null
+          id?: string
+          processing_time_ms?: number | null
+          question?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_document_chunks: {
+        Args: {
+          filter_document_ids?: string[]
+          filter_tags?: string[]
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_id: string
+          chunk_index: number
+          chunk_text: string
+          document_id: string
+          document_name: string
+          document_tags: string[]
+          similarity: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
