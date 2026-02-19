@@ -202,13 +202,11 @@ const Ask = () => {
                     <div
                       className={`p-3 sm:p-5 rounded-2xl break-words overflow-hidden ${
                         message.sender === 'user'
-                          ? 'bg-white/10 backdrop-blur-sm border border-white/20 max-w-[85%] sm:max-w-[80%]'
-                          : 'bg-secondary/50 flex-1 min-w-0'
+                          ? 'bg-primary/10 border border-primary/20 max-w-[85%] sm:max-w-[80%] text-foreground'
+                          : 'bg-secondary/50 flex-1 min-w-0 text-foreground'
                       }`}
-                      style={message.sender === 'user' ? { color: '#FFFFFF' } : {}}
                     >
-                      <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">
-                        {message.sender === 'ai' ? (
+                      <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">{message.sender === 'ai' ? (
                           <ReactMarkdown
                             components={{
                               p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
@@ -308,7 +306,7 @@ const Ask = () => {
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
                       R
                     </div>
-                    <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0">
+                    <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0 text-foreground">
                       <div className="flex items-center gap-2">
                         <Loader2 size={16} className="animate-spin flex-shrink-0" />
                         <span className="text-sm sm:text-base text-muted-foreground">

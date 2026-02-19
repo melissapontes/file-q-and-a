@@ -243,13 +243,20 @@ PROTOCOLO DE RESPOSTA:
 2. ANALISE os resultados da busca:
    - SE file_search retornar documentos com informacoes sobre o topico:
      * RESPONDA usando as informacoes encontradas
-     * CITE todos os documentos utilizados (nome completo do arquivo)
+     * CITE usando NUMEROS entre colchetes ao longo do texto: [1], [2], [3]
+     * Coloque a citacao [numero] imediatamente apos a informacao relevante
      * Organize em topicos numerados
      * SEJA DETALHADO - extraia informacoes especificas dos documentos
    
    - SE file_search NAO retornar documentos relevantes OU retornar documentos que NAO tratam do topico:
      * Responda: "Nao encontrei informacoes sobre [topico] nos documentos disponiveis."
      * NAO invente informacoes
+
+FORMATO DE CITACAO:
+- Use [1], [2], [3] no texto (NAO use o nome completo do arquivo no meio do texto)
+- A lista de referencias sera gerada automaticamente ao final
+- Cada numero corresponde a um documento especifico
+- Exemplo: "Fenilpropanolamina na dose de 2 mg/kg a cada 8-12 horas [1]."
 
 DETALHAMENTO OBRIGATORIO (quando presente nos documentos):
 
@@ -524,19 +531,40 @@ IDIOMA:
         // IMPORTANT: annotation.text is the exact marker string (e.g. 【4:2†source】).
         // We must match by annotation.text, NOT by the number inside the marker,
         // because that number is an OpenAI-internal ID and NOT an array index.
+        
+        // Create a map of filename to reference number
+        const filenameToNumber = new Map<string, number>();
+        const orderedReferences: string[] = [];
+        let refNumber = 1;
+
+        // First pass: assign numbers to unique filenames in order of appearance
+        for (const annotation of annotations) {
+          if (annotation.type === 'file_citation') {
+            const fileId = annotation.file_citation?.file_id;
+            const filename = citationMap.get(fileId) || fileId;
+            if (!filenameToNumber.has(filename)) {
+              filenameToNumber.set(filename, refNumber);
+              orderedReferences.push(filename);
+              refNumber++;
+            }
+          }
+        }
+
+        // Second pass: replace annotations with numbered citations [1], [2], etc.
         answer = rawAnswer;
         for (const annotation of annotations) {
           if (annotation.type === 'file_citation' && annotation.text) {
             const fileId = annotation.file_citation?.file_id;
             const filename = citationMap.get(fileId) || fileId;
-            // Replace every occurrence of this exact marker in the answer
-            answer = answer.split(annotation.text).join(` **[${filename}]**`);
+            const citationNumber = filenameToNumber.get(filename);
+            // Replace every occurrence of this exact marker with the numbered citation
+            answer = answer.split(annotation.text).join(`[${citationNumber}]`);
           }
         }
 
-        // Populate references array for frontend rendering
-        references = Array.from(citationMap.values());
-        console.log(`Processed answer with ${citationMap.size} unique references`);
+        // Populate references array for frontend rendering (in numerical order)
+        references = orderedReferences;
+        console.log(`Processed answer with ${references.length} unique references`);
       }
     }
 
