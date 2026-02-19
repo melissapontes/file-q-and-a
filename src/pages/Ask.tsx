@@ -5,8 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText, Search, CheckCircle2, Circle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+
+interface RelevantSource {
+  file_id: string;
+  filename: string;
+  score: number | null;
+  cited: boolean;
+}
 
 interface Message {
   id: string;
@@ -14,6 +22,12 @@ interface Message {
   sender: 'user' | 'ai';
   timestamp: Date;
   references?: string[];
+  allRelevantSources?: RelevantSource[];
+  stats?: {
+    total_consulted: number;
+    total_cited: number;
+    consultation_coverage: string;
+  };
 }
 
 const Ask = () => {
@@ -113,6 +127,8 @@ const Ask = () => {
         sender: 'ai',
         timestamp: new Date(),
         references: data.references || [],
+        allRelevantSources: data.all_relevant_sources || [],
+        stats: data.stats,
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -216,7 +232,7 @@ const Ask = () => {
                         <div className="mt-4 pt-3 border-t border-border/50">
                           <div className="flex items-center gap-2 mb-2">
                             <FileText size={14} className="text-muted-foreground" />
-                            <span className="text-xs font-semibold text-muted-foreground">Referências:</span>
+                            <span className="text-xs font-semibold text-muted-foreground">Referências Citadas:</span>
                           </div>
                           <div className="space-y-1">
                             {message.references.map((ref, idx) => (
@@ -225,6 +241,56 @@ const Ask = () => {
                               </p>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {message.allRelevantSources && message.allRelevantSources.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-border/50">
+                          <Accordion type="single" collapsible className="w-full">
+                            <AccordionItem value="sources" className="border-none">
+                              <AccordionTrigger className="text-xs font-semibold text-muted-foreground hover:no-underline py-1">
+                                <div className="flex items-center gap-2">
+                                  <Search size={14} />
+                                  <span>
+                                    Todos os Documentos Consultados 
+                                    {message.stats && (
+                                      <span className="ml-2 font-normal">
+                                        ({message.stats.total_consulted} encontrados, {message.stats.total_cited} citados)
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent>
+                                <div className="space-y-2 pt-2">
+                                  {message.allRelevantSources.map((source, idx) => (
+                                    <div 
+                                      key={idx} 
+                                      className={`text-xs pl-4 py-1.5 rounded ${source.cited ? 'bg-green-500/10' : 'bg-muted/50'}`}
+                                    >
+                                      <div className="flex items-start gap-2">
+                                        {source.cited ? (
+                                          <CheckCircle2 size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
+                                        ) : (
+                                          <Circle size={14} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <p className={`break-words ${source.cited ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+                                            {source.filename}
+                                          </p>
+                                          {source.score !== null && (
+                                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                                              Relevância: {(source.score * 100).toFixed(1)}%
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
                         </div>
                       )}
                     </div>

@@ -176,6 +176,52 @@ serve(async (req) => {
     console.log(`   OpenAI's file_search will automatically find the most relevant documents`);
     console.log(`   No pre-filtering by tags - pure semantic similarity matching\n`);
 
+    // ✅ CROSS-LANGUAGE SEARCH: Translate PT query to EN for better vector matching
+    console.log('🌐 Detecting and translating query for better search...');
+    let searchQuery = question;
+    
+    // Simple heuristic: if query contains Portuguese characters/words, translate to English
+    const isProbablyPortuguese = /[áàãâéêíóôõúç]/i.test(question) || 
+                                 /\b(como|que|qual|para|com|tratamento|doenca|medicamento)\b/i.test(question);
+    
+    if (isProbablyPortuguese) {
+      try {
+        const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'Translate the following veterinary medical question from Portuguese to English. Output ONLY the translation, nothing else.'
+              },
+              {
+                role: 'user',
+                content: question
+              }
+            ],
+            max_tokens: 200,
+            temperature: 0
+          }),
+        });
+
+        if (translationResponse.ok) {
+          const translationData = await translationResponse.json();
+          searchQuery = translationData.choices[0]?.message?.content?.trim() || question;
+          console.log(`   Original (PT): ${question}`);
+          console.log(`   Translated (EN): ${searchQuery}`);
+        }
+      } catch (e) {
+        console.log('   Translation failed, using original query:', e);
+      }
+    } else {
+      console.log('   Query appears to be in English, no translation needed');
+    }
+
     // Step 2: Create an Assistant with file_search using the MAIN vector store
     console.log('Creating Assistant with semantic search...');
     const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
@@ -187,59 +233,49 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         name: 'Nefrologia Veterinária RAG',
-        instructions: `Você é um assistente veterinário especializado em nefrologia e urologia.
+        instructions: `REGRA DE FONTE DE INFORMACAO:
+Use EXCLUSIVAMENTE os documentos retornados pela ferramenta file_search.
+Nao use conhecimento externo ao conjunto de documentos fornecidos.
 
-📚 USE OS DOCUMENTOS:
-Responda com base nas informações encontradas nos documentos pela ferramenta file_search.
-Não use conhecimento externo - apenas o que está nos documentos.
+PROTOCOLO DE RESPOSTA:
 
+1. Execute file_search para buscar documentos relevantes
+2. ANALISE os resultados da busca:
+   - SE file_search retornar documentos com informacoes sobre o topico:
+     * RESPONDA usando as informacoes encontradas
+     * CITE todos os documentos utilizados (nome completo do arquivo)
+     * Organize em topicos numerados
+     * SEJA DETALHADO - extraia informacoes especificas dos documentos
+   
+   - SE file_search NAO retornar documentos relevantes OU retornar documentos que NAO tratam do topico:
+     * Responda: "Nao encontrei informacoes sobre [topico] nos documentos disponiveis."
+     * NAO invente informacoes
 
+DETALHAMENTO OBRIGATORIO (quando presente nos documentos):
 
-Priorize documentos da espécie mencionada (cão/gato) quando relevante.
+Para perguntas sobre TRATAMENTO, inclua:
+- Nomes especificos de medicamentos mencionados
+- Dosagens (mg/kg, mg/dia) em **negrito**
+- Via de administracao (oral, IV, SC)
+- Frequencia (BID, TID, SID)
+- Duracao do tratamento
+- Racoes terapeuticas especificas (marca e linha)
 
+Para perguntas sobre DIAGNOSTICO, inclua:
+- Exames mencionados
+- Valores de referencia
+- Criterios diagnosticos
 
+IMPORTANTE - Equilibrio:
+- Se o documento tem informacoes detalhadas: FORNECA os detalhes
+- Se o documento tem apenas informacoes gerais: FORNECA o que ha
+- Se nao encontrou documentos relevantes: DIGA que nao encontrou
+- NUNCA invente detalhes nao escritos nos documentos
+- Cite documentos apenas se relevantes ao topico
 
-📝 FORMATAÇÃO:
-- Cite fontes automaticamente
-- Use tópicos numerados
-- Inclua seção "Fontes:" ao final
-- Use **negrito** para doses
-
----
-
-⚠️ DETALHAMENTO OBRIGATÓRIO (APENAS QUANDO EXISTIR NO DOCUMENTO):
-⚠️ **SE O DOCUMENTO NÃO CONTIVER O DADO, NÃO INVENTE E NÃO PRESUMA**
-
-- **Medicamentos**:
-  Nome completo, dosagem (mg/kg), via, frequência, duração
-  Exemplo permitido SOMENTE se constar no documento:
-  "Nome do medicamento, **2–3 mEq/kg/dia**, via oral, dividido em 2–3 doses"
-
-- **Rações**:
-  Marca e linha específica APENAS se mencionadas no documento
-
-- **Exames**:
-  Valores de referência, unidades e método, SOMENTE se escritos no documento
-
-- **Tratamentos**:
-  Protocolo completo, SOMENTE se descrito passo a passo no documento
-
-- Use **negrito** apenas para valores numéricos que estejam explicitamente escritos
-
----
-
-📝 FORMATAÇÃO:
-- Organize em tópicos numerados (1., 2., 3.)
-- Linha em branco entre tópicos
-- **Ao final, inclua uma seção “Fontes”**
-- Cite cada fonte no formato:
-  [nome_completo_do_arquivo]
-
----
-
-🚫 O QUE NÃO FAZER (REFORÇADO):
-- NÃO invente informações não presentes nos documentos
-- NÃO dê diagnósticos definitivos - forneça informação educacional`,
+IDIOMA:
+- SEMPRE responda em PORTUGUES (pt-BR), mesmo que a pergunta seja em ingles
+- Os documentos podem estar em ingles, mas sua resposta deve ser em portugues`,
         model: 'gpt-4o',
         tools: [{
           type: 'file_search',
@@ -286,8 +322,8 @@ Priorize documentos da espécie mencionada (cão/gato) quando relevante.
     // Step 4: Add user message to Thread (with image context if available)
     console.log('Adding message to thread...');
 
-    // Combine question with image context if available
-    let fullQuestion = question;
+    // Use translated query for better search, combine with image context if available
+    let fullQuestion = searchQuery;  // Use translated query for search
     if (imageContext) {
       fullQuestion += imageContext;
       console.log('Added image context to question');
@@ -574,6 +610,35 @@ Priorize documentos da espécie mencionada (cão/gato) quando relevante.
       }
     }
 
+    // ✅ STAGE 1: Build comprehensive list of ALL relevant documents consulted
+    const allRelevantSources = [];
+    const seenFiles = new Set();
+
+    for (const doc of consultedDocuments) {
+      const fileId = doc.file_id || doc[0];
+      if (!seenFiles.has(fileId)) {
+        seenFiles.add(fileId);
+        const filename = fileIdToNameMap.get(fileId) || fileId;
+        allRelevantSources.push({
+          file_id: fileId,
+          filename: filename,
+          score: doc.score || null,
+          cited: citationMap.has(fileId)
+        });
+      }
+    }
+
+    // Sort by score (highest first), then by whether it was cited
+    allRelevantSources.sort((a, b) => {
+      if (b.score !== null && a.score !== null) {
+        return b.score - a.score;
+      }
+      if (b.cited !== a.cited) return b.cited ? 1 : -1;
+      return 0;
+    });
+
+    console.log(`📋 All relevant sources: ${allRelevantSources.length} documents consulted, ${citationMap.size} cited`);
+
     // Cleanup uploaded files
     if (uploadedFileIds.length > 0) {
       console.log('Cleaning up temporary files...');
@@ -592,7 +657,16 @@ Priorize documentos da espécie mencionada (cão/gato) quando relevante.
     }
 
     return new Response(
-      JSON.stringify({ answer, references }),
+      JSON.stringify({ 
+        answer, 
+        references,
+        all_relevant_sources: allRelevantSources,
+        stats: {
+          total_consulted: allRelevantSources.length,
+          total_cited: citationMap.size,
+          consultation_coverage: `${citationMap.size}/${allRelevantSources.length} documentos citados`
+        }
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
