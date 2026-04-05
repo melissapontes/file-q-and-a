@@ -27,10 +27,12 @@ IDIOMA:
 const ASSISTANT_TOOLS = [{
   type: 'file_search',
   file_search: {
-    max_num_results: 20,
+    //max_num_results: 20,
+    max_num_results: 5,
     ranking_options: {
       ranker: 'auto',
-      score_threshold: 0.0
+      //score_threshold: 0.0
+      score_threshold: 0.7
     }
   },
 }];
