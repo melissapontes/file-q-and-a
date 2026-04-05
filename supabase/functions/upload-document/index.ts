@@ -280,16 +280,63 @@ serve(async (req) => {
         console.log('File added to vector store:', vectorStoreData.id);
 
         // Update document record with success
-        await supabase
-          .from('documents')
-          .update({
-            openai_file_id: openaiFileData.id,
-            vector_store_file_id: vectorStoreData.id,
-            processing_status: 'completed'
-          })
-          .eq('id', documentRecord.id);
+        // ✅ Poll vector store file status to confirm indexation
+        let indexStatus = vectorStoreData.status || 'in_progress';
+        let indexAttempts = 0;
+        const maxIndexAttempts = 60;
 
-        console.log('Document processing completed successfully');
+        while (indexStatus === 'in_progress' && indexAttempts < maxIndexAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          indexAttempts++;
+
+          try {
+            const statusResponse = await fetch(
+              `https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${vectorStoreData.id}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${openaiApiKey}`,
+                  'OpenAI-Beta': 'assistants=v2',
+                },
+              }
+            );
+
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              indexStatus = statusData.status;
+              if (indexAttempts % 5 === 0) {
+                console.log(`   Indexation status: ${indexStatus} (attempt ${indexAttempts}/${maxIndexAttempts})`);
+              }
+            }
+          } catch (e) {
+            console.warn('Error checking indexation status:', e);
+          }
+        }
+
+        if (indexStatus === 'completed') {
+          await supabase
+            .from('documents')
+            .update({
+              openai_file_id: openaiFileData.id,
+              vector_store_file_id: vectorStoreData.id,
+              processing_status: 'completed'
+            })
+            .eq('id', documentRecord.id);
+          console.log('✅ Document indexed and processing completed successfully');
+        } else {
+          const errorMsg = indexStatus === 'failed' 
+            ? 'Vector store indexation failed' 
+            : `Indexation timeout (status: ${indexStatus})`;
+          console.error(`❌ ${errorMsg}`);
+          await supabase
+            .from('documents')
+            .update({
+              openai_file_id: openaiFileData.id,
+              vector_store_file_id: vectorStoreData.id,
+              processing_status: 'error',
+              error_message: errorMsg
+            })
+            .eq('id', documentRecord.id);
+        }
 
       } catch (error) {
         console.error('Background processing error:', error);

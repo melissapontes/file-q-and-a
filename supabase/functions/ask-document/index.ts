@@ -6,6 +6,68 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ASSISTANT_INSTRUCTIONS = `Voce e um assistente especialista em nefrologia e urologia veterinaria.
+
+REGRAS DE GROUNDING (OBRIGATORIAS):
+1. Use APENAS as passagens retornadas pelo file_search nesta consulta.
+2. Se as passagens retornadas nao contiverem informacao suficiente para responder, diga: "Nao encontrei informacoes suficientes sobre [topico] nos documentos disponiveis." Nao complemente com conhecimento proprio.
+3. Cite um documento [N] SOMENTE quando a informacao especifica que voce esta afirmando veio do texto desse documento. Se voce nao pode apontar o trecho exato, nao cite esse documento.
+4. NUNCA invente dados, dosagens, valores de referencia ou diagnosticos.
+
+FORMATO DE RESPOSTA:
+- Organize em topicos numerados quando houver multiplos pontos
+- Inclua detalhes especificos quando presentes: medicamentos, dosagens (em **negrito**), via de administracao, frequencia, valores de referencia
+- Use citacoes numeradas [1], [2], [3] imediatamente apos cada informacao extraida de um documento
+- A lista de referencias sera gerada automaticamente
+
+IDIOMA:
+- SEMPRE responda em PORTUGUES (pt-BR)
+- Os documentos podem estar em ingles, mas sua resposta deve ser em portugues`;
+
+const ASSISTANT_TOOLS = [{
+  type: 'file_search',
+  file_search: {
+    max_num_results: 20,
+    ranking_options: {
+      ranker: 'auto',
+      score_threshold: 0.0
+    }
+  },
+}];
+
+async function createAssistant(openaiApiKey: string, vectorStoreId: string): Promise<{ id: string }> {
+  console.log('Creating new Assistant with semantic search...');
+  const response = await fetch('https://api.openai.com/v1/assistants', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${openaiApiKey}`,
+      'Content-Type': 'application/json',
+      'OpenAI-Beta': 'assistants=v2',
+    },
+    body: JSON.stringify({
+      name: 'Nefrologia Veterinária RAG',
+      instructions: ASSISTANT_INSTRUCTIONS,
+      model: 'gpt-4o',
+      tools: ASSISTANT_TOOLS,
+      tool_resources: {
+        file_search: {
+          vector_store_ids: [vectorStoreId]
+        }
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error('Error creating assistant:', error);
+    throw new Error(`Erro ao criar assistente: ${error}`);
+  }
+
+  const assistant = await response.json();
+  console.log('✅ Assistant created:', assistant.id);
+  return assistant;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -176,134 +238,95 @@ serve(async (req) => {
     console.log(`   OpenAI's file_search will automatically find the most relevant documents`);
     console.log(`   No pre-filtering by tags - pure semantic similarity matching\n`);
 
-    // ✅ CROSS-LANGUAGE SEARCH: Translate PT query to EN for better vector matching
-    console.log('🌐 Detecting and translating query for better search...');
-    let searchQuery = question;
-    
-    // Simple heuristic: if query contains Portuguese characters/words, translate to English
-    const isProbablyPortuguese = /[áàãâéêíóôõúç]/i.test(question) || 
-                                 /\b(como|que|qual|para|com|tratamento|doenca|medicamento)\b/i.test(question);
-    
-    if (isProbablyPortuguese) {
-      try {
-        const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              {
-                role: 'system',
-                content: 'Translate the following veterinary medical question from Portuguese to English. Output ONLY the translation, nothing else.'
-              },
-              {
-                role: 'user',
-                content: question
-              }
-            ],
-            max_tokens: 200,
-            temperature: 0
-          }),
-        });
-
-        if (translationResponse.ok) {
-          const translationData = await translationResponse.json();
-          searchQuery = translationData.choices[0]?.message?.content?.trim() || question;
-          console.log(`   Original (PT): ${question}`);
-          console.log(`   Translated (EN): ${searchQuery}`);
+    // 🌐 Busca bilíngue: traduz a pergunta para EN para melhorar o recall cross-language.
+    // Os documentos estão em inglês; embeddings de queries em PT ficam em coordenadas
+    // diferentes das queries em EN, causando miss de documentos relevantes.
+    let translatedQuestion = '';
+    try {
+      console.log('🌐 Translating question to EN for bilingual file_search...');
+      const translationResp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'Translate the following veterinary question to English. Output only the translation, nothing else.'
+            },
+            { role: 'user', content: question }
+          ],
+          max_tokens: 300,
+          temperature: 0
+        }),
+      });
+      if (translationResp.ok) {
+        const translationData = await translationResp.json();
+        const translation = translationData.choices[0]?.message?.content?.trim() || '';
+        if (translation && translation.toLowerCase() !== question.toLowerCase()) {
+          translatedQuestion = translation;
+          console.log(`✅ EN translation: ${translatedQuestion}`);
         }
-      } catch (e) {
-        console.log('   Translation failed, using original query:', e);
+      }
+    } catch (e) {
+      console.log('⚠️ Translation failed, using original question only');
+    }
+
+    // Step 2: Get or Create Assistant with file_search
+    const existingAssistantId = Deno.env.get('OPENAI_ASSISTANT_ID');
+    let assistant: { id: string };
+    let assistantIsNew = false;
+
+    if (existingAssistantId) {
+      // Try to reuse existing persistent assistant
+      console.log(`Reusing persistent assistant: ${existingAssistantId}`);
+      const getResponse = await fetch(`https://api.openai.com/v1/assistants/${existingAssistantId}`, {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'OpenAI-Beta': 'assistants=v2',
+        },
+      });
+
+      if (getResponse.ok) {
+        assistant = await getResponse.json();
+        console.log('✅ Persistent assistant retrieved:', assistant.id);
+        // Sync tools config: garante que mudanças no código (max_num_results, instruções)
+        // se apliquem ao assistente persistente em vez de ficarem presas na criação inicial.
+        try {
+          await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiApiKey}`,
+              'Content-Type': 'application/json',
+              'OpenAI-Beta': 'assistants=v2',
+            },
+            body: JSON.stringify({
+              instructions: ASSISTANT_INSTRUCTIONS,
+              tools: ASSISTANT_TOOLS,
+              tool_resources: {
+                file_search: { vector_store_ids: [vectorStoreId] }
+              },
+            }),
+          });
+          console.log('✅ Persistent assistant config synced');
+        } catch (e) {
+          console.warn('⚠️ Could not sync assistant config:', e);
+        }
+      } else {
+        console.warn('⚠️ Could not retrieve persistent assistant, creating new one...');
+        existingAssistantId && console.warn(`   (ID ${existingAssistantId} may be invalid)`);
+        assistant = await createAssistant(openaiApiKey, vectorStoreId);
+        assistantIsNew = true;
       }
     } else {
-      console.log('   Query appears to be in English, no translation needed');
+      console.log('No OPENAI_ASSISTANT_ID set, creating new assistant...');
+      assistant = await createAssistant(openaiApiKey, vectorStoreId);
+      assistantIsNew = true;
+      console.log(`💡 To reuse this assistant, set env var: OPENAI_ASSISTANT_ID=${assistant.id}`);
     }
-
-    // Step 2: Create an Assistant with file_search using the MAIN vector store
-    console.log('Creating Assistant with semantic search...');
-    const assistantResponse = await fetch('https://api.openai.com/v1/assistants', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2',
-      },
-      body: JSON.stringify({
-        name: 'Nefrologia Veterinária RAG',
-        instructions: `REGRA DE FONTE DE INFORMACAO:
-Use EXCLUSIVAMENTE os documentos retornados pela ferramenta file_search.
-Nao use conhecimento externo ao conjunto de documentos fornecidos.
-
-PROTOCOLO DE RESPOSTA:
-
-1. Execute file_search para buscar documentos relevantes
-2. ANALISE os resultados da busca:
-   - SE file_search retornar documentos com informacoes sobre o topico:
-     * RESPONDA usando as informacoes encontradas
-     * CITE usando NUMEROS entre colchetes ao longo do texto: [1], [2], [3]
-     * Coloque a citacao [numero] imediatamente apos a informacao relevante
-     * Organize em topicos numerados
-     * SEJA DETALHADO - extraia informacoes especificas dos documentos
-   
-   - SE file_search NAO retornar documentos relevantes OU retornar documentos que NAO tratam do topico:
-     * Responda: "Nao encontrei informacoes sobre [topico] nos documentos disponiveis."
-     * NAO invente informacoes
-
-FORMATO DE CITACAO:
-- Use [1], [2], [3] no texto (NAO use o nome completo do arquivo no meio do texto)
-- A lista de referencias sera gerada automaticamente ao final
-- Cada numero corresponde a um documento especifico
-- Exemplo: "Fenilpropanolamina na dose de 2 mg/kg a cada 8-12 horas [1]."
-
-DETALHAMENTO OBRIGATORIO (quando presente nos documentos):
-
-Para perguntas sobre TRATAMENTO, inclua:
-- Nomes especificos de medicamentos mencionados
-- Dosagens (mg/kg, mg/dia) em **negrito**
-- Via de administracao (oral, IV, SC)
-- Frequencia (BID, TID, SID)
-- Duracao do tratamento
-- Racoes terapeuticas especificas (marca e linha)
-
-Para perguntas sobre DIAGNOSTICO, inclua:
-- Exames mencionados
-- Valores de referencia
-- Criterios diagnosticos
-
-IMPORTANTE - Equilibrio:
-- Se o documento tem informacoes detalhadas: FORNECA os detalhes
-- Se o documento tem apenas informacoes gerais: FORNECA o que ha
-- Se nao encontrou documentos relevantes: DIGA que nao encontrou
-- NUNCA invente detalhes nao escritos nos documentos
-- Cite documentos apenas se relevantes ao topico
-
-IDIOMA:
-- SEMPRE responda em PORTUGUES (pt-BR), mesmo que a pergunta seja em ingles
-- Os documentos podem estar em ingles, mas sua resposta deve ser em portugues`,
-        model: 'gpt-4o',
-        tools: [{
-          type: 'file_search',
-          file_search: { max_num_results: 20 },
-        }],
-        tool_resources: {
-          file_search: {
-            vector_store_ids: [vectorStoreId]  // Use MAIN vector store, not temporary
-          }
-        },
-      }),
-    });
-
-    if (!assistantResponse.ok) {
-      const error = await assistantResponse.text();
-      console.error('Error creating assistant:', error);
-      throw new Error(`Erro ao criar assistente: ${error}`);
-    }
-
-    const assistant = await assistantResponse.json();
-    console.log('Assistant created:', assistant.id);
 
     // Step 3: Create a Thread
     console.log('Creating Thread...');
@@ -329,8 +352,13 @@ IDIOMA:
     // Step 4: Add user message to Thread (with image context if available)
     console.log('Adding message to thread...');
 
-    // Use translated query for better search, combine with image context if available
-    let fullQuestion = searchQuery;  // Use translated query for search
+    // Pergunta bilíngue: inclui PT (para contexto da resposta) + EN (para recall no vector store)
+    // A instrução "responda em PT" impede que o hint EN afete o idioma da resposta.
+    let fullQuestion = question;
+    if (translatedQuestion) {
+      fullQuestion += `\n\n[Search context - EN]: ${translatedQuestion}`;
+      console.log('📝 Bilingual question ready for file_search');
+    }
     if (imageContext) {
       fullQuestion += imageContext;
       console.log('Added image context to question');
@@ -527,21 +555,37 @@ IDIOMA:
           }
         }
 
+        // Validação anti-alucinação: remove citações cujo file_id não estava nos
+        // resultados reais do file_search desta execução. Evita que o modelo cite
+        // documentos que não foram recuperados (ou que venham de runs anteriores).
+        if (consultedDocuments.length > 0) {
+          const retrievedFileIds = new Set(
+            consultedDocuments.map((doc: any) => doc.file_id).filter(Boolean)
+          );
+          for (const fileId of Array.from(citationMap.keys())) {
+            if (!retrievedFileIds.has(fileId)) {
+              console.warn(`⚠️ CITAÇÃO INVÁLIDA removida: ${citationMap.get(fileId)} (${fileId}) — não estava nos resultados do file_search`);
+              citationMap.delete(fileId);
+            }
+          }
+        }
+
         // Replace citation markers with inline references and build reference list
         // IMPORTANT: annotation.text is the exact marker string (e.g. 【4:2†source】).
         // We must match by annotation.text, NOT by the number inside the marker,
         // because that number is an OpenAI-internal ID and NOT an array index.
-        
+
         // Create a map of filename to reference number
         const filenameToNumber = new Map<string, number>();
         const orderedReferences: string[] = [];
         let refNumber = 1;
 
-        // First pass: assign numbers to unique filenames in order of appearance
+        // First pass: assign numbers only to citations that passed validation
         for (const annotation of annotations) {
           if (annotation.type === 'file_citation') {
             const fileId = annotation.file_citation?.file_id;
-            const filename = citationMap.get(fileId) || fileId;
+            if (!citationMap.has(fileId)) continue; // skip invalidated citations
+            const filename = citationMap.get(fileId)!;
             if (!filenameToNumber.has(filename)) {
               filenameToNumber.set(filename, refNumber);
               orderedReferences.push(filename);
@@ -551,13 +595,18 @@ IDIOMA:
         }
 
         // Second pass: replace annotations with numbered citations [1], [2], etc.
+        // Citations that didn't pass validation have their markers stripped.
         answer = rawAnswer;
         for (const annotation of annotations) {
           if (annotation.type === 'file_citation' && annotation.text) {
             const fileId = annotation.file_citation?.file_id;
-            const filename = citationMap.get(fileId) || fileId;
+            if (!citationMap.has(fileId)) {
+              // Citação inválida: remove o marcador do texto sem deixar rastro
+              answer = answer.split(annotation.text).join('');
+              continue;
+            }
+            const filename = citationMap.get(fileId)!;
             const citationNumber = filenameToNumber.get(filename);
-            // Replace every occurrence of this exact marker with the numbered citation
             answer = answer.split(annotation.text).join(`[${citationNumber}]`);
           }
         }
@@ -570,18 +619,22 @@ IDIOMA:
 
     console.log('Response retrieved successfully');
 
-    // Cleanup: Delete the assistant
-    try {
-      await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
-      });
-      console.log('Assistant deleted');
-    } catch (e) {
-      console.log('Could not delete assistant:', e);
+    // Cleanup: Delete assistant only if it was newly created (not persistent)
+    if (assistantIsNew) {
+      try {
+        await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'OpenAI-Beta': 'assistants=v2',
+          },
+        });
+        console.log('Temporary assistant deleted');
+      } catch (e) {
+        console.log('Could not delete assistant:', e);
+      }
+    } else {
+      console.log('Persistent assistant kept alive:', assistant.id);
     }
 
     console.log('Generated answer successfully');

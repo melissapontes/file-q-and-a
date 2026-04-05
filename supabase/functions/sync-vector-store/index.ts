@@ -60,10 +60,26 @@ serve(async (req) => {
     const listData = await listResponse.json();
     const vectorFiles = Array.isArray(listData.data) ? listData.data : [];
 
-    const orphaned = vectorFiles.filter((file: { id: string; file_id?: string }) => {
+    const orphaned = vectorFiles.filter((file: { id: string; file_id?: string; status?: string }) => {
       const fileId = file.file_id || file.id;
       return !allowedFileIds.has(fileId);
     });
+
+    // Detectar arquivos com indexação pendente ou com falha
+    const indexingIssues = vectorFiles
+      .filter((file: { id: string; file_id?: string; status?: string; last_error?: any }) =>
+        allowedFileIds.has(file.file_id || file.id) && file.status !== 'completed'
+      )
+      .map((file: { id: string; file_id?: string; status?: string; last_error?: any }) => ({
+        id: file.id,
+        file_id: file.file_id,
+        status: file.status,
+        last_error: file.last_error ?? null,
+      }));
+
+    if (indexingIssues.length > 0) {
+      console.warn(`⚠️ ${indexingIssues.length} arquivo(s) com status diferente de 'completed':`, indexingIssues);
+    }
 
     const deleted: { id: string; file_id?: string }[] = [];
     const failed: { id: string; error: string }[] = [];
@@ -100,6 +116,8 @@ serve(async (req) => {
         deleted,
         failedCount: failed.length,
         failed,
+        indexingIssues,
+        indexingIssuesCount: indexingIssues.length,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
