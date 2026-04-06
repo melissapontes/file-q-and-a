@@ -45,8 +45,8 @@ All colors MUST be HSL.
     --gradient-accent: linear-gradient(90deg, hsl(174 74% 40% / 0.1), hsl(200 58% 45% / 0.1));
     
     /* Light mode glass effect */
-    --glass-bg: hsl(0 0% 100% / 0.9);
-    --glass-border: hsl(240 5% 80% / 0.5);
+    --glass-bg: hsl(0 0% 100% / 0.0);
+    --glass-border: hsl(174 74% 40% / 0.5);
     
     /* Light mode shadows */
     --shadow-glow: 0 0 40px hsl(174 74% 40% / 0.2);

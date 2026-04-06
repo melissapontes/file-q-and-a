@@ -27,12 +27,11 @@ IDIOMA:
 const ASSISTANT_TOOLS = [{
   type: 'file_search',
   file_search: {
-    //max_num_results: 20,
-    max_num_results: 5,
+    max_num_results: 20,
     ranking_options: {
       ranker: 'auto',
       //score_threshold: 0.0
-      score_threshold: 0.7
+      score_threshold: 0.0
     }
   },
 }];
@@ -76,6 +75,15 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Verify JWT authentication
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     console.log('Ask document function called');
 
@@ -87,6 +95,21 @@ serve(async (req) => {
 
     if (!openaiApiKey || !vectorStoreId) {
       throw new Error('Missing required environment variables: OPENAI_API_KEY or OPENAI_VECTOR_STORE_ID');
+    }
+
+    // Validate JWT and get authenticated user
+    if (supabaseUrl && supabaseServiceKey) {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
+      const jwt = authHeader.replace('Bearer ', '');
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(jwt);
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      console.log('Authenticated user:', user.id);
     }
 
     // Parse request - can be JSON or FormData
@@ -205,7 +228,7 @@ serve(async (req) => {
     };
 
     // Fetch document metadata from Supabase for logging purposes only
-    let documentsMetadata: { openai_file_id: string; original_name: string }[] = [];
+    let documentsMetadata: { openai_file_id: string; original_name: string; metadata_file_id: string | null }[] = [];
     if (supabaseUrl && supabaseServiceKey) {
       try {
         const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
@@ -213,13 +236,14 @@ serve(async (req) => {
 
         const { data, error } = await supabase
           .from('documents')
-          .select('openai_file_id, original_name')
+          .select('openai_file_id, original_name, metadata_file_id')
           .not('openai_file_id', 'is', null);
 
         if (!error && data) {
           documentsMetadata = data.map(doc => ({
             openai_file_id: doc.openai_file_id!,
-            original_name: doc.original_name
+            original_name: doc.original_name,
+            metadata_file_id: doc.metadata_file_id || null
           }));
           queryLogData.documents_fetched = documentsMetadata.length;
           console.log(`📚 Total documents available: ${documentsMetadata.length}`);
@@ -229,10 +253,15 @@ serve(async (req) => {
       }
     }
 
-    // ✅ SOLUÇÃO 1: Criar mapa local de file_id → filename para evitar chamadas à API
+    // Mapa file_id → filename; metadata companion files mapeiam para o nome do doc principal
     const fileIdToNameMap = new Map<string, string>();
+    const metadataFileIds = new Set<string>();
     for (const doc of documentsMetadata) {
       fileIdToNameMap.set(doc.openai_file_id, doc.original_name);
+      if (doc.metadata_file_id) {
+        fileIdToNameMap.set(doc.metadata_file_id, doc.original_name);
+        metadataFileIds.add(doc.metadata_file_id);
+      }
     }
     console.log(`🗂️  Created local file ID map with ${fileIdToNameMap.size} entries`);
 
@@ -257,7 +286,9 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: 'Translate the following veterinary question to English. Output only the translation, nothing else.'
+              content: `You are a veterinary medical translator. Translate the following question to English.
+Then expand it with 3-5 relevant synonyms or related clinical terms commonly used in veterinary literature (e.g. "treat" → also include "management, therapy, treatment, guidelines, protocol").
+Output a single enriched English search query. No explanations, no bullet points — just the query text.`
             },
             { role: 'user', content: question }
           ],
@@ -699,7 +730,7 @@ serve(async (req) => {
 
     for (const doc of consultedDocuments) {
       const fileId = doc.file_id || doc[0];
-      if (!seenFiles.has(fileId)) {
+      if (!seenFiles.has(fileId) && !metadataFileIds.has(fileId)) {
         seenFiles.add(fileId);
         const filename = fileIdToNameMap.get(fileId) || fileId;
         allRelevantSources.push({

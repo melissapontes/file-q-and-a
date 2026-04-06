@@ -313,12 +313,49 @@ serve(async (req) => {
         }
 
         if (indexStatus === 'completed') {
+          let metadataFileId: string | null = null;
+
+          // Upload companion metadata file if tags exist
+          if (tags.length > 0) {
+            try {
+              const metadataContent = `Document: ${file.name}\nTags: ${tags.join(', ')}\nKeywords: ${tags.join(' ')}\nTopics: ${tags.join(', ')}`;
+              const metadataBlob = new Blob([metadataContent], { type: 'text/plain' });
+              const metaForm = new FormData();
+              metaForm.append('file', metadataBlob, `${file.name}_metadata.txt`);
+              metaForm.append('purpose', 'assistants');
+
+              const metaUploadResp = await fetch('https://api.openai.com/v1/files', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${openaiApiKey}` },
+                body: metaForm,
+              });
+
+              if (metaUploadResp.ok) {
+                const metaFileData = await metaUploadResp.json();
+                await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${openaiApiKey}`,
+                    'Content-Type': 'application/json',
+                    'OpenAI-Beta': 'assistants=v2',
+                  },
+                  body: JSON.stringify({ file_id: metaFileData.id }),
+                });
+                metadataFileId = metaFileData.id;
+                console.log('✅ Metadata companion file uploaded:', metadataFileId);
+              }
+            } catch (e) {
+              console.warn('⚠️ Could not upload metadata file:', e);
+            }
+          }
+
           await supabase
             .from('documents')
             .update({
               openai_file_id: openaiFileData.id,
               vector_store_file_id: vectorStoreData.id,
-              processing_status: 'completed'
+              processing_status: 'completed',
+              ...(metadataFileId ? { metadata_file_id: metadataFileId } : {})
             })
             .eq('id', documentRecord.id);
           console.log('✅ Document indexed and processing completed successfully');

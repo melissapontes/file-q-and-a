@@ -10,12 +10,32 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+    if (supabaseUrl && supabaseServiceKey) {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(authHeader.replace('Bearer ', ''));
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
     if (!openaiApiKey || !vectorStoreId || !supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing required environment variables');
     }
@@ -35,14 +55,17 @@ serve(async (req) => {
 
     const { data: documents, error } = await supabase
       .from('documents')
-      .select('openai_file_id')
+      .select('openai_file_id, metadata_file_id')
       .not('openai_file_id', 'is', null);
 
     if (error) {
       throw new Error(`Failed to fetch documents: ${error.message}`);
     }
 
-    const allowedFileIds = new Set((documents || []).map((d) => d.openai_file_id));
+    const allowedFileIds = new Set([
+      ...(documents || []).map((d: { openai_file_id: string; metadata_file_id: string | null }) => d.openai_file_id),
+      ...(documents || []).filter((d: { openai_file_id: string; metadata_file_id: string | null }) => d.metadata_file_id).map((d: { openai_file_id: string; metadata_file_id: string | null }) => d.metadata_file_id),
+    ]);
 
     const listResponse = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
       method: 'GET',

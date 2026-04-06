@@ -148,7 +148,7 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
                 required
-                className="bg-secondary border-glass"
+                className="bg-transparent border-primary"
               />
             </div>
 
@@ -167,7 +167,7 @@ const Auth = () => {
                     placeholder="••••••••"
                     required
                     minLength={6}
-                    className="bg-secondary border-glass pr-10"
+                    className="bg-transparent border-primary pr-10"
                   />
                   <button
                     type="button"

@@ -10,12 +10,34 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
     const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!openaiApiKey || !vectorStoreId) {
       throw new Error('Missing OpenAI API key or Vector Store ID');
+    }
+
+    if (supabaseUrl && supabaseServiceKey) {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
+      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(authHeader.replace('Bearer ', ''));
+      if (authError || !user) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Get vector store files from OpenAI

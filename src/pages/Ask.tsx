@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText, Search, CheckCircle2, Circle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { supabase } from "@/integrations/supabase/client";
 
 interface RelevantSource {
   file_id: string;
@@ -109,8 +110,14 @@ const Ask = () => {
         formData.append('files', file);
       });
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ask-document`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: formData
       });
 
@@ -194,16 +201,16 @@ const Ask = () => {
                     className={`flex gap-2 sm:gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-transparent border-2 border-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm sm:text-base">
                         R
                       </div>
                     )}
-                    
+
                     <div
                       className={`p-3 sm:p-5 rounded-2xl break-words overflow-hidden ${
                         message.sender === 'user'
-                          ? 'bg-primary/10 border border-primary/20 max-w-[85%] sm:max-w-[80%] text-foreground'
-                          : 'bg-secondary/50 flex-1 min-w-0 text-foreground'
+                          ? 'bg-transparent border-2 border-primary/60 max-w-[85%] sm:max-w-[80%] text-foreground'
+                          : 'bg-transparent border border-primary/30 flex-1 min-w-0 text-foreground'
                       }`}
                     >
                       <div className="text-sm sm:text-base leading-relaxed prose prose-sm sm:prose-base max-w-full dark:prose-invert break-words [&>*]:max-w-full [&_*]:break-words">{message.sender === 'ai' ? (
@@ -303,10 +310,10 @@ const Ask = () => {
 
                 {isLoading && (
                   <div className="flex gap-2 sm:gap-3 justify-start w-full">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-secondary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-foreground text-sm sm:text-base">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-transparent border-2 border-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm sm:text-base">
                       R
                     </div>
-                    <div className="bg-secondary/50 p-3 sm:p-5 rounded-2xl flex-1 min-w-0 text-foreground">
+                    <div className="bg-transparent border border-primary/30 p-3 sm:p-5 rounded-2xl flex-1 min-w-0 text-foreground">
                       <div className="flex items-center gap-2">
                         <Loader2 size={16} className="animate-spin flex-shrink-0" />
                         <span className="text-sm sm:text-base text-muted-foreground">
@@ -326,7 +333,7 @@ const Ask = () => {
                 {attachedFiles.map((file, index) => (
                   <div
                     key={index}
-                    className="flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-secondary rounded-full text-xs sm:text-sm"
+                    className="flex items-center gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-transparent border border-primary rounded-full text-xs sm:text-sm"
                   >
                     <Paperclip size={12} className="sm:w-[14px] sm:h-[14px]" />
                     <span className="max-w-[120px] sm:max-w-[200px] truncate">{file.name}</span>
