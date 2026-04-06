@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:functions": "deno test --allow-env supabase/functions/ask-document/index.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

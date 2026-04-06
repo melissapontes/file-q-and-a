@@ -400,11 +400,9 @@ Output a single enriched English search query. No explanations, no bullet points
     }
 
     if (prioritizedDocs.length > 0) {
-      // Injeta os títulos na query — força o embedding a aproximar chunks desses documentos
       const titlesForSearch = prioritizedDocs.map(d => d.original_name.replace(/\.[^.]+$/, '')).join('. ');
       fullQuestion += `\n\n[Priority documents for this query]: ${titlesForSearch}`;
 
-      // Instrui o LLM a priorizar esses documentos na resposta
       const priorityList = prioritizedDocs.map(d => `- "${d.original_name}"`).join('\n');
       fullQuestion += `\n\n[INSTRUÇÃO]: O usuário marcou os documentos abaixo como referência principal para este tema. USE O CONTEÚDO DELES PREFERENCIALMENTE. Apenas complemente com outros documentos se necessário:\n${priorityList}`;
       console.log(`🎯 ${prioritizedDocs.length} prioritized document(s) injected: ${titlesForSearch}`);
@@ -617,9 +615,21 @@ Output a single enriched English search query. No explanations, no bullet points
               console.warn(`⚠️ CITAÇÃO INVÁLIDA removida: ${citationMap.get(fileId)} (${fileId}) — não estava nos resultados do file_search`);
               citationMap.delete(fileId);
             }
-            // Remove metadata companion files from citations
-            if (metadataFileIds.has(fileId)) {
-              citationMap.delete(fileId);
+          }
+
+          // Pós-processamento determinístico: se existem docs priorizados por tag
+          // nos resultados, remover citações de docs SEM a tag relevante
+          if (prioritizedDocs.length > 0) {
+            const prioritizedFileIds = new Set(prioritizedDocs.map(d => d.openai_file_id));
+            const prioritizedInResults = Array.from(citationMap.keys()).some(fid => prioritizedFileIds.has(fid));
+
+            if (prioritizedInResults) {
+              for (const fileId of Array.from(citationMap.keys())) {
+                if (!prioritizedFileIds.has(fileId)) {
+                  console.warn(`⚠️ CITAÇÃO REMOVIDA (não priorizada): ${citationMap.get(fileId)}`);
+                  citationMap.delete(fileId);
+                }
+              }
             }
           }
         }
