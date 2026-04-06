@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import logoImg from "@/assets/logo.png";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText, Search, CheckCircle2, Circle } from "lucide-react";
+import { Send, MessageCircle, Bot, User, Loader2, Paperclip, X, FileText, Search, CheckCircle2, Circle, PawPrint } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -201,8 +202,8 @@ const Ask = () => {
                     className={`flex gap-2 sm:gap-3 ${message.sender === 'user' ? 'justify-end' : 'justify-start'} w-full`}
                   >
                     {message.sender === 'ai' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-transparent border-2 border-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm sm:text-base">
-                        R
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        <img src={logoImg} alt="RAG" className="w-full h-full object-contain" />
                       </div>
                     )}
 
@@ -301,8 +302,8 @@ const Ask = () => {
                     </div>
 
                     {message.sender === 'user' && (
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-sm sm:text-base">
-                        V
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-primary rounded-full flex items-center justify-center flex-shrink-0">
+                        <PawPrint size={18} className="text-white" />
                       </div>
                     )}
                   </div>
@@ -310,8 +311,8 @@ const Ask = () => {
 
                 {isLoading && (
                   <div className="flex gap-2 sm:gap-3 justify-start w-full">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-transparent border-2 border-primary rounded-full flex items-center justify-center flex-shrink-0 font-bold text-primary text-sm sm:text-base">
-                      R
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      <img src={logoImg} alt="RAG" className="w-full h-full object-contain" />
                     </div>
                     <div className="bg-transparent border border-primary/30 p-3 sm:p-5 rounded-2xl flex-1 min-w-0 text-foreground">
                       <div className="flex items-center gap-2">
