@@ -228,7 +228,7 @@ serve(async (req) => {
     };
 
     // Fetch document metadata from Supabase for logging purposes only
-    let documentsMetadata: { openai_file_id: string; original_name: string; metadata_file_id: string | null }[] = [];
+    let documentsMetadata: { openai_file_id: string; original_name: string; metadata_file_id: string | null; tags: string[] }[] = [];
     if (supabaseUrl && supabaseServiceKey) {
       try {
         const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
@@ -236,14 +236,15 @@ serve(async (req) => {
 
         const { data, error } = await supabase
           .from('documents')
-          .select('openai_file_id, original_name, metadata_file_id')
+          .select('openai_file_id, original_name, metadata_file_id, tags')
           .not('openai_file_id', 'is', null);
 
         if (!error && data) {
           documentsMetadata = data.map(doc => ({
             openai_file_id: doc.openai_file_id!,
             original_name: doc.original_name,
-            metadata_file_id: doc.metadata_file_id || null
+            metadata_file_id: doc.metadata_file_id || null,
+            tags: doc.tags || []
           }));
           queryLogData.documents_fetched = documentsMetadata.length;
           console.log(`📚 Total documents available: ${documentsMetadata.length}`);
@@ -385,16 +386,32 @@ Output a single enriched English search query. No explanations, no bullet points
     // Step 4: Add user message to Thread (with image context if available)
     console.log('Adding message to thread...');
 
-    // Pergunta bilíngue: inclui PT (para contexto da resposta) + EN (para recall no vector store)
-    // A instrução "responda em PT" impede que o hint EN afete o idioma da resposta.
+    // Priorização por tags: identifica documentos tagueados cujas tags coincidem com a query
+    const queryLower = (question + ' ' + translatedQuestion).toLowerCase();
+    const prioritizedDocs = documentsMetadata.filter(doc =>
+      doc.tags.length > 0 && doc.tags.some(tag => queryLower.includes(tag.toLowerCase()))
+    );
+
+    // Pergunta bilíngue + injeção de títulos dos docs priorizados diretamente na query
+    // para forçar o vector store a buscar chunks desses documentos específicos
     let fullQuestion = question;
     if (translatedQuestion) {
       fullQuestion += `\n\n[Search context - EN]: ${translatedQuestion}`;
-      console.log('📝 Bilingual question ready for file_search');
     }
+
+    if (prioritizedDocs.length > 0) {
+      // Injeta os títulos na query — força o embedding a aproximar chunks desses documentos
+      const titlesForSearch = prioritizedDocs.map(d => d.original_name.replace(/\.[^.]+$/, '')).join('. ');
+      fullQuestion += `\n\n[Priority documents for this query]: ${titlesForSearch}`;
+
+      // Instrui o LLM a priorizar esses documentos na resposta
+      const priorityList = prioritizedDocs.map(d => `- "${d.original_name}"`).join('\n');
+      fullQuestion += `\n\n[INSTRUÇÃO]: O usuário marcou os documentos abaixo como referência principal para este tema. USE O CONTEÚDO DELES PREFERENCIALMENTE. Apenas complemente com outros documentos se necessário:\n${priorityList}`;
+      console.log(`🎯 ${prioritizedDocs.length} prioritized document(s) injected: ${titlesForSearch}`);
+    }
+
     if (imageContext) {
       fullQuestion += imageContext;
-      console.log('Added image context to question');
     }
 
     const messageBody: any = {
@@ -600,6 +617,10 @@ Output a single enriched English search query. No explanations, no bullet points
               console.warn(`⚠️ CITAÇÃO INVÁLIDA removida: ${citationMap.get(fileId)} (${fileId}) — não estava nos resultados do file_search`);
               citationMap.delete(fileId);
             }
+            // Remove metadata companion files from citations
+            if (metadataFileIds.has(fileId)) {
+              citationMap.delete(fileId);
+            }
           }
         }
 
@@ -730,7 +751,8 @@ Output a single enriched English search query. No explanations, no bullet points
 
     for (const doc of consultedDocuments) {
       const fileId = doc.file_id || doc[0];
-      if (!seenFiles.has(fileId) && !metadataFileIds.has(fileId)) {
+      const isMetadata = metadataFileIds.has(fileId) || (doc.filename && doc.filename.endsWith('_metadata.txt'));
+      if (!seenFiles.has(fileId) && !isMetadata) {
         seenFiles.add(fileId);
         const filename = fileIdToNameMap.get(fileId) || fileId;
         allRelevantSources.push({

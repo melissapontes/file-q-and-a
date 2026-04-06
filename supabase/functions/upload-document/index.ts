@@ -318,7 +318,15 @@ serve(async (req) => {
           // Upload companion metadata file if tags exist
           if (tags.length > 0) {
             try {
-              const metadataContent = `Document: ${file.name}\nTags: ${tags.join(', ')}\nKeywords: ${tags.join(' ')}\nTopics: ${tags.join(', ')}`;
+              const metadataContent = [
+                `Document title: ${file.name}`,
+                `Topics: ${tags.join(', ')}`,
+                `Keywords: ${tags.join(', ')}`,
+                `This document is about: ${tags.join(', ')}.`,
+                `Relevant for questions about: ${tags.join(', ')}.`,
+                `Subject areas: ${tags.join(', ')}.`,
+                `Use this document when asked about: ${tags.join(', ')}.`,
+              ].join('\n');
               const metadataBlob = new Blob([metadataContent], { type: 'text/plain' });
               const metaForm = new FormData();
               metaForm.append('file', metadataBlob, `${file.name}_metadata.txt`);
@@ -332,7 +340,7 @@ serve(async (req) => {
 
               if (metaUploadResp.ok) {
                 const metaFileData = await metaUploadResp.json();
-                await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
+                const metaVsResp = await fetch(`https://api.openai.com/v1/vector_stores/${vectorStoreId}/files`, {
                   method: 'POST',
                   headers: {
                     'Authorization': `Bearer ${openaiApiKey}`,
@@ -341,8 +349,29 @@ serve(async (req) => {
                   },
                   body: JSON.stringify({ file_id: metaFileData.id }),
                 });
-                metadataFileId = metaFileData.id;
-                console.log('✅ Metadata companion file uploaded:', metadataFileId);
+
+                if (metaVsResp.ok) {
+                  const metaVsData = await metaVsResp.json();
+
+                  // Poll until metadata file is indexed
+                  let metaStatus = metaVsData.status || 'in_progress';
+                  let metaAttempts = 0;
+                  while (metaStatus === 'in_progress' && metaAttempts < 30) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    metaAttempts++;
+                    try {
+                      const metaStatusResp = await fetch(
+                        `https://api.openai.com/v1/vector_stores/${vectorStoreId}/files/${metaVsData.id}`,
+                        { headers: { 'Authorization': `Bearer ${openaiApiKey}`, 'OpenAI-Beta': 'assistants=v2' } }
+                      );
+                      if (metaStatusResp.ok) {
+                        metaStatus = (await metaStatusResp.json()).status;
+                      }
+                    } catch (e) { /* ignore */ }
+                  }
+                  metadataFileId = metaFileData.id;
+                  console.log(`✅ Metadata companion file indexed (status: ${metaStatus}):`, metadataFileId);
+                }
               }
             } catch (e) {
               console.warn('⚠️ Could not upload metadata file:', e);
