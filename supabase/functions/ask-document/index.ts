@@ -386,14 +386,22 @@ Output a single enriched English search query. No explanations, no bullet points
     // Step 4: Add user message to Thread (with image context if available)
     console.log('Adding message to thread...');
 
-    // Priorização por tags: identifica documentos tagueados cujas tags coincidem com a query
+    // Detecta se a pergunta é sobre protocolo de tratamento
+    const isProtocolQuery = /protocolo/i.test(question);
+
+    // Priorização por tags: identifica documentos cujas tags coincidem com a query
+    // Quando é query de protocolo, também prioriza docs com "protocolo" no nome ou nas tags
     const queryLower = (question + ' ' + translatedQuestion).toLowerCase();
-    const prioritizedDocs = documentsMetadata.filter(doc =>
-      doc.tags.length > 0 && doc.tags.some(tag => queryLower.includes(tag.toLowerCase()))
-    );
+    const prioritizedDocs = documentsMetadata.filter(doc => {
+      const tagMatch = doc.tags.length > 0 && doc.tags.some(tag => queryLower.includes(tag.toLowerCase()));
+      const protocolMatch = isProtocolQuery && (
+        doc.original_name.toLowerCase().includes('protocolo') ||
+        doc.tags.some(tag => tag.toLowerCase().includes('protocolo'))
+      );
+      return tagMatch || protocolMatch;
+    });
 
     // Pergunta bilíngue + injeção de títulos dos docs priorizados diretamente na query
-    // para forçar o vector store a buscar chunks desses documentos específicos
     let fullQuestion = question;
     if (translatedQuestion) {
       fullQuestion += `\n\n[Search context - EN]: ${translatedQuestion}`;
@@ -406,6 +414,11 @@ Output a single enriched English search query. No explanations, no bullet points
       const priorityList = prioritizedDocs.map(d => `- "${d.original_name}"`).join('\n');
       fullQuestion += `\n\n[INSTRUÇÃO]: O usuário marcou os documentos abaixo como referência principal para este tema. USE O CONTEÚDO DELES PREFERENCIALMENTE. Apenas complemente com outros documentos se necessário:\n${priorityList}`;
       console.log(`🎯 ${prioritizedDocs.length} prioritized document(s) injected: ${titlesForSearch}`);
+    }
+
+    if (isProtocolQuery) {
+      fullQuestion += `\n\n[INSTRUÇÃO PROTOCOLO]: Esta pergunta é sobre protocolo de tratamento. OBRIGATORIAMENTE inclua na resposta: medicamentos, doses (em **negrito**), via de administração e frequência. Se não encontrar doses nos documentos, informe explicitamente.`;
+      console.log('📋 Protocol query detected — doses/medications required in response');
     }
 
     if (imageContext) {
