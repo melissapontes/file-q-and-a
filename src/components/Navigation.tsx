@@ -1,21 +1,22 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload, MessageCircle, Home, LogIn, LogOut, User, FileText, Bug } from "lucide-react";
+import { Upload, Home, LogIn, LogOut, User, FileText, Bug } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import ThemeToggle from "./ThemeToggle";
 import logo from "@/assets/logo.png";
 
 const Navigation = () => {
   const location = useLocation();
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, isAdmin, signOut } = useAuth();
 
-  const navItems = [
-    { path: "/", label: "Home", icon: Home },
-    { path: "/upload", label: "Upload", icon: Upload },
-    { path: "/documents", label: "Documentos", icon: FileText },
-    { path: "/ask", label: "Pergunte", icon: MessageCircle },
-    { path: "/debug", label: "Debug", icon: Bug },
+  const allNavItems = [
+    { path: "/", label: "Home", icon: Home, adminOnly: false },
+    { path: "/upload", label: "Upload", icon: Upload, adminOnly: true },
+    { path: "/documents", label: "Documentos", icon: FileText, adminOnly: true },
+    { path: "/debug", label: "Debug", icon: Bug, adminOnly: true },
   ];
+
+  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <nav className="bg-glass border-b border-glass backdrop-blur-xl">
@@ -32,12 +33,7 @@ const Navigation = () => {
                   <>
                     {navItems.map(({ path, label, icon: Icon }) => {
                       const isActive = location.pathname === path;
-                      const isAskPage = path === "/ask";
-                      const isHomePage = location.pathname === "/";
-
-                      // Na Home, apenas "Pergunte" fica destacado; em outras páginas, a página ativa
-                      const shouldHighlight = isHomePage ? isAskPage : isActive;
-                      const variant = shouldHighlight ? "default" : "ghost";
+                      const variant = isActive ? "default" : "ghost";
 
                       return (
                         <Button
@@ -45,7 +41,7 @@ const Navigation = () => {
                           variant={variant}
                           size="sm"
                           asChild
-                          className={shouldHighlight ? "shadow-glow" : ""}
+                          className={isActive ? "shadow-glow" : ""}
                         >
                           <Link to={path} className="flex items-center gap-1 sm:gap-2">
                             <Icon size={16} />
