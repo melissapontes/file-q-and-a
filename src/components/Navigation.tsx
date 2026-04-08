@@ -1,6 +1,6 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Upload, Home, LogIn, LogOut, User, FileText, Bug, Tags } from "lucide-react";
+import { Upload, LogOut, User, FileText, Bug, Tags, Menu, X, LogIn } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import ThemeToggle from "./ThemeToggle";
 import logo from "@/assets/logo.png";
@@ -8,88 +8,113 @@ import logo from "@/assets/logo.png";
 const Navigation = () => {
   const location = useLocation();
   const { user, loading, isAdmin, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
 
-  const allNavItems = [
-    { path: "/", label: "Home", icon: Home, adminOnly: false },
+  const menuItems = [
     { path: "/topics", label: "Tópicos", icon: Tags, adminOnly: false },
     { path: "/upload", label: "Upload", icon: Upload, adminOnly: true },
     { path: "/documents", label: "Documentos", icon: FileText, adminOnly: true },
     { path: "/debug", label: "Debug", icon: Bug, adminOnly: true },
-  ];
-
-  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
+  ].filter(item => !item.adminOnly || isAdmin);
 
   return (
-    <nav className="bg-glass border-b border-glass backdrop-blur-xl">
-      <div className="container mx-auto px-2 sm:px-4 py-2 sm:py-4">
-        <div className="flex items-center justify-between gap-2">
-          <Link to="/" className="flex items-center">
-            <img src={logo} alt="Nefro & Uro.AI Logo" className="h-10 sm:h-12 w-auto object-contain" />
-          </Link>
-          
-          <div className="flex items-center gap-1 sm:gap-2">
-            {!loading && (
-              <>
-                {user ? (
-                  <>
-                    {navItems.map(({ path, label, icon: Icon }) => {
-                      const isActive = location.pathname === path;
-                      const variant = isActive ? "default" : "ghost";
+    <>
+      <nav className="bg-glass border-b border-glass backdrop-blur-xl relative z-50">
+        <div className="container mx-auto px-4 py-2">
+          <div className="flex items-center justify-between">
+            {/* Logo + Nome */}
+            <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
+              <img src={logo} alt="Logo" className="h-10 w-auto object-contain" />
+              <span className="font-bold text-base sm:text-lg bg-gradient-primary bg-clip-text text-transparent leading-tight">
+                RAG Nefro & Uro
+              </span>
+            </Link>
 
-                      return (
-                        <Button
-                          key={path}
-                          variant={variant}
-                          size="sm"
-                          asChild
-                          className={isActive ? "shadow-glow" : ""}
-                        >
-                          <Link to={path} className="flex items-center gap-1 sm:gap-2">
-                            <Icon size={16} />
-                            <span className="hidden sm:inline">{label}</span>
-                          </Link>
-                        </Button>
-                      );
-                    })}
-                    <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2 pl-1 sm:pl-2 border-l border-glass">
-                      <span className="text-xs sm:text-sm text-muted-foreground hidden md:flex items-center gap-1">
-                        <User size={14} />
-                        {user.email}
-                      </span>
-                      <ThemeToggle />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={signOut}
-                        className="flex items-center gap-1 sm:gap-2"
-                      >
-                        <LogOut size={16} />
-                        <span className="hidden sm:inline">Sair</span>
-                      </Button>
-                    </div>
-                  </>
+            {/* Direita */}
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              {!loading && (
+                user ? (
+                  <button
+                    onClick={() => setOpen(prev => !prev)}
+                    className="p-2 rounded-md hover:bg-muted transition-colors"
+                    aria-label="Menu"
+                  >
+                    {open ? <X size={22} /> : <Menu size={22} />}
+                  </button>
                 ) : (
-                  <>
-                    <ThemeToggle />
-                    <Button
-                      variant="default"
-                      size="sm"
-                      asChild
-                      className="shadow-glow"
-                    >
-                      <Link to="/auth" className="flex items-center gap-1 sm:gap-2">
-                        <LogIn size={16} />
-                        <span className="hidden sm:inline">Entrar</span>
-                      </Link>
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
+                  <Link
+                    to="/auth"
+                    className="flex items-center gap-1 text-sm font-medium text-primary hover:opacity-80 transition-opacity"
+                  >
+                    <LogIn size={16} />
+                    Entrar
+                  </Link>
+                )
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      {/* Drawer */}
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+
+          {/* Panel */}
+          <div className="fixed top-0 right-0 h-full w-64 z-50 bg-card border-l border-border shadow-2xl flex flex-col">
+            {/* Header do drawer */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <User size={14} className="text-muted-foreground" />
+                <span className="text-xs text-muted-foreground truncate max-w-[160px]">{user?.email}</span>
+              </div>
+              <button onClick={() => setOpen(false)} className="p-1 hover:text-foreground text-muted-foreground">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Itens */}
+            <nav className="flex-1 px-2 py-3 space-y-1">
+              {menuItems.map(({ path, label, icon: Icon }) => {
+                const isActive = location.pathname === path;
+                return (
+                  <Link
+                    key={path}
+                    to={path}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary text-primary-foreground shadow-glow"
+                        : "hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    <Icon size={17} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Sair */}
+            <div className="px-2 py-3 border-t border-border">
+              <button
+                onClick={() => { setOpen(false); signOut(); }}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-destructive dark:text-white hover:bg-destructive/10 w-full transition-colors"
+              >
+                <LogOut size={17} />
+                Sair
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </>
   );
 };
 

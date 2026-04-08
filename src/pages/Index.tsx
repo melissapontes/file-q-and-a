@@ -182,14 +182,6 @@ const Index = () => {
   return (
     <div className="flex-1 flex flex-col overflow-hidden p-2 sm:p-4 md:p-6">
       <div className="container mx-auto max-w-4xl flex flex-col flex-1 overflow-hidden">
-        <div className="text-center mb-3 sm:mb-6 pt-4 sm:pt-8 flex-shrink-0">
-          <h1 className="text-2xl sm:text-4xl font-bold mb-1 bg-gradient-primary bg-clip-text text-transparent">
-            RAG Nefro & Uro
-          </h1>
-          <p className="text-xs text-muted-foreground/60 italic">
-            Retrieval-Augmented Generation
-          </p>
-        </div>
 
         <div className={`flex flex-col flex-1 overflow-hidden ${hasOnlyWelcomeMessage ? 'gap-4 sm:gap-6' : ''}`}>
           <Card className={`p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft flex flex-col ${hasOnlyWelcomeMessage ? '' : 'flex-1 mb-2 sm:mb-4 overflow-hidden'}`}>
