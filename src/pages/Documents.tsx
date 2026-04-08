@@ -198,13 +198,13 @@ const Documents = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-secondary p-6">
+    <div className="min-h-screen bg-gradient-secondary p-2 sm:p-4 md:p-6">
       <div className="container mx-auto max-w-4xl">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
+        <div className="text-center mb-4 sm:mb-8 pt-2 sm:pt-4">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-4 bg-gradient-primary bg-clip-text text-transparent">
             Gerenciar Documentos
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-xs sm:text-lg">
             Visualize e organize seus documentos com tags
           </p>
         </div>
@@ -218,7 +218,7 @@ const Documents = () => {
           className="hidden"
         />
 
-        <Card className="p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
+        <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
           {documents.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="mx-auto mb-4 w-16 h-16 text-muted-foreground opacity-50" />
@@ -236,76 +236,80 @@ const Documents = () => {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className="p-4 bg-card rounded-lg border border-border shadow-sm"
+                  className="p-3 sm:p-4 bg-card rounded-lg border border-border shadow-sm"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start gap-3 mb-2">
-                        <FileText size={24} className="text-primary flex-shrink-0 mt-0.5" />
-                        <h3 className="font-semibold text-foreground text-base flex-1 break-words">{doc.original_name}</h3>
-                        {doc.processing_status === 'completed' ? (
-                          <CheckCircle2 size={24} className="text-tag flex-shrink-0" />
-                        ) : doc.processing_status === 'error' ? (
-                          <XCircle size={24} className="text-destructive flex-shrink-0" />
-                        ) : (
-                          <Badge variant="secondary" className="flex-shrink-0">{doc.processing_status}</Badge>
-                        )}
-                      </div>
-                      
-                      <div className="text-sm text-foreground/70 mb-3 font-medium">
-                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
-                        {doc.processing_status === 'error' && doc.error_message && (
-                          <span className="text-destructive ml-2">
-                            • Falha no processamento
-                          </span>
-                        )}
-                      </div>
-
-                      {editingDoc === doc.id ? (
-                        <div className="space-y-3">
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Nome do documento</label>
-                            <Input
-                              type="text"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              placeholder="Nome do documento"
-                              className="text-sm"
-                              autoFocus
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1 block">Tags (separadas por vírgula)</label>
-                            <Input
-                              type="text"
-                              value={editTags}
-                              onChange={(e) => setEditTags(e.target.value)}
-                              placeholder="Tag1, Tag2, Tag3"
-                              className="text-sm"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleUpdateDocument(doc.id)}
-                            >
-                              Salvar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setEditingDoc(null);
-                                setEditName('');
-                                setEditTags('');
-                              }}
-                            >
-                              Cancelar
-                            </Button>
-                          </div>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-start gap-2">
+                      <FileText size={20} className="text-primary flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start gap-2">
+                          <h3 className="font-semibold text-foreground text-sm sm:text-base flex-1 break-words leading-snug">{doc.original_name}</h3>
+                          {doc.processing_status === 'completed' ? (
+                            <CheckCircle2 size={18} className="text-tag flex-shrink-0 mt-0.5" />
+                          ) : doc.processing_status === 'error' ? (
+                            <XCircle size={18} className="text-destructive flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <Badge variant="secondary" className="flex-shrink-0 text-xs">{doc.processing_status}</Badge>
+                          )}
                         </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-2">
+                      
+                        <div className="text-xs sm:text-sm text-foreground/70 mt-1 font-medium">
+                          {(doc.file_size / 1024 / 1024).toFixed(2)} MB • {new Date(doc.created_at).toLocaleDateString('pt-BR')}
+                          {doc.processing_status === 'error' && doc.error_message && (
+                            <span className="text-destructive ml-2">
+                              • Falha no processamento
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {editingDoc === doc.id ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Nome do documento</label>
+                          <Input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            placeholder="Nome do documento"
+                            className="text-sm"
+                            autoFocus
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">Tags (separadas por vírgula)</label>
+                          <Input
+                            type="text"
+                            value={editTags}
+                            onChange={(e) => setEditTags(e.target.value)}
+                            placeholder="Tag1, Tag2, Tag3"
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => handleUpdateDocument(doc.id)}
+                          >
+                            Salvar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingDoc(null);
+                              setEditName('');
+                              setEditTags('');
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
                           {doc.tags && doc.tags.length > 0 ? (
                             doc.tags.map((tag, index) => {
                               const colors = getTagColor(tag);
@@ -313,56 +317,56 @@ const Documents = () => {
                                 <Badge 
                                   key={index} 
                                   variant="secondary" 
-                                  className="gap-1 border-0"
+                                  className="gap-1 border-0 text-xs"
                                   style={{ backgroundColor: colors.bg, color: colors.fg }}
                                 >
-                                  <Tag size={12} />
+                                  <Tag size={10} />
                                   {tag}
                                 </Badge>
                               );
                             })
                           ) : (
-                            <span className="text-sm text-foreground/60 font-medium bg-muted px-2 py-1 rounded">Sem tags</span>
+                            <span className="text-xs text-foreground/60 font-medium bg-muted px-2 py-0.5 rounded">Sem tags</span>
                           )}
                         </div>
-                      )}
-                    </div>
 
-                    <div className="flex gap-2 ml-4 flex-shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleReuploadClick(doc.id)}
-                        disabled={editingDoc !== null || reuploadingDoc !== null}
-                        className="p-2"
-                        title="Re-upload do documento"
-                      >
-                        <RefreshCw size={20} className={reuploadingDoc === doc.id ? 'animate-spin' : ''} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingDoc(doc.id);
-                          setEditName(doc.original_name);
-                          setEditTags(doc.tags?.join(', ') || '');
-                        }}
-                        disabled={editingDoc !== null}
-                        className="p-2"
-                        title="Editar nome e tags"
-                      >
-                        <Edit size={20} />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(doc.id)}
-                        disabled={editingDoc !== null}
-                        className="p-2"
-                      >
-                        <Trash2 size={20} className="text-destructive" />
-                      </Button>
-                    </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleReuploadClick(doc.id)}
+                            disabled={editingDoc !== null || reuploadingDoc !== null}
+                            className="p-1.5 h-8 w-8"
+                            title="Re-upload do documento"
+                          >
+                            <RefreshCw size={16} className={reuploadingDoc === doc.id ? 'animate-spin' : ''} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingDoc(doc.id);
+                              setEditName(doc.original_name);
+                              setEditTags(doc.tags?.join(', ') || '');
+                            }}
+                            disabled={editingDoc !== null}
+                            className="p-1.5 h-8 w-8"
+                            title="Editar nome e tags"
+                          >
+                            <Edit size={16} />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDelete(doc.id)}
+                            disabled={editingDoc !== null}
+                            className="p-1.5 h-8 w-8"
+                          >
+                            <Trash2 size={16} className="text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
