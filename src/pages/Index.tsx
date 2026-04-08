@@ -369,25 +369,6 @@ const Index = () => {
               </div>
               <div className="flex gap-1 sm:gap-2">
                 <Button
-                  onClick={() => {
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.multiple = true;
-                    input.accept = '.pdf,.txt,.md,.docx,.jpg,.jpeg,.png';
-                    input.onchange = (e) => {
-                      const files = Array.from((e.target as HTMLInputElement).files || []);
-                      onDrop(files);
-                    };
-                    input.click();
-                  }}
-                  disabled={isLoading}
-                  variant="outline"
-                  size="lg"
-                  className="h-[48px] sm:h-[60px] w-[48px] sm:w-auto px-2 sm:px-4"
-                >
-                  <Paperclip size={18} className="sm:w-[20px] sm:h-[20px]" />
-                </Button>
-                <Button
                   onClick={handleSendMessage}
                   disabled={!inputMessage.trim() || isLoading}
                   className="bg-gradient-primary hover:opacity-90 shadow-glow h-[48px] sm:h-[60px] w-[48px] sm:w-auto px-2 sm:px-4"
@@ -404,7 +385,7 @@ const Index = () => {
 
             <div className="hidden sm:flex items-center gap-2 mt-3 text-xs text-muted-foreground">
               <MessageCircle size={12} />
-              <span>Pressione Enter para enviar, Shift+Enter para quebrar linha • Arraste arquivos ou clique no 📎</span>
+              <span>Pressione Enter para enviar, Shift+Enter para quebrar linha</span>
             </div>
           </Card>
         </div>
