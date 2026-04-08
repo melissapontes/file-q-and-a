@@ -36,7 +36,7 @@ const Index = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Olá! Eu sou seu RAG Nefro & Uro Vet. Faça perguntas sobre os documentos que você me forneceu e eu tentarei responder com base no conteúdo deles',
+      content: 'Sou seu assistente em Nefro e Uro Vet. Faça uma pergunta — eu cruzo evidências e te entrego uma resposta objetiva e referenciada.',
       sender: 'ai',
       timestamp: new Date(),
     }
@@ -183,11 +183,11 @@ const Index = () => {
     <div className="flex-1 flex flex-col overflow-hidden p-2 sm:p-4 md:p-6">
       <div className="container mx-auto max-w-4xl flex flex-col flex-1 overflow-hidden">
         <div className="text-center mb-3 sm:mb-6 pt-4 sm:pt-8 flex-shrink-0">
-          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 bg-gradient-primary bg-clip-text text-transparent">
-            Pergunte ao RAG
+          <h1 className="text-2xl sm:text-4xl font-bold mb-1 bg-gradient-primary bg-clip-text text-transparent">
+            RAG Nefro & Uro
           </h1>
-          <p className="text-xs sm:text-base text-muted-foreground">
-            Faça perguntas sobre seus documentos e obtenha respostas inteligentes
+          <p className="text-xs text-muted-foreground/60 italic">
+            Retrieval-Augmented Generation
           </p>
         </div>
 
@@ -221,7 +221,13 @@ const Index = () => {
                               em: ({ children }) => <em className="italic">{children}</em>,
                               ul: ({ children }) => <ul className="list-disc list-inside mb-4 space-y-1">{children}</ul>,
                               ol: ({ children }) => <ol className="list-decimal list-outside ml-5 mb-4 space-y-2">{children}</ol>,
-                              li: ({ children }) => <li className="mb-1">{children}</li>,
+                              li: ({ children }) => {
+                                const hasContent = Array.isArray(children)
+                                  ? children.some(c => c !== null && c !== undefined && c !== '')
+                                  : children !== null && children !== undefined && children !== '';
+                                if (!hasContent) return null;
+                                return <li className="mb-1">{children}</li>;
+                              },
                               code: ({ children }) => <code className="bg-muted px-1.5 py-0.5 rounded text-sm">{children}</code>,
                               pre: ({ children }) => <pre className="bg-muted p-3 rounded my-3 overflow-x-auto">{children}</pre>,
                             }}

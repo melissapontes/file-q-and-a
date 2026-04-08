@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Upload, Home, LogIn, LogOut, User, FileText, Bug } from "lucide-react";
+import { Upload, Home, LogIn, LogOut, User, FileText, Bug, Tags } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import ThemeToggle from "./ThemeToggle";
 import logo from "@/assets/logo.png";
@@ -11,6 +11,7 @@ const Navigation = () => {
 
   const allNavItems = [
     { path: "/", label: "Home", icon: Home, adminOnly: false },
+    { path: "/topics", label: "Tópicos", icon: Tags, adminOnly: false },
     { path: "/upload", label: "Upload", icon: Upload, adminOnly: true },
     { path: "/documents", label: "Documentos", icon: FileText, adminOnly: true },
     { path: "/debug", label: "Debug", icon: Bug, adminOnly: true },
