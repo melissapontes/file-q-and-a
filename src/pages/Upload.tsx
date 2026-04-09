@@ -189,7 +189,7 @@ const Upload = () => {
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="Ex: oxalato de cálcio, nefrologia, canino (separados por vírgula)"
-                  className="w-full px-4 py-2 rounded-lg bg-white text-gray-900 border-2 border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full px-4 py-2 rounded-lg bg-background text-foreground border-2 border-primary focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={uploading}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
@@ -206,7 +206,7 @@ const Upload = () => {
                 {files.map((file, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-3 bg-white border-2 border-primary rounded-lg"
+                    className="flex items-center justify-between p-3 bg-card border-2 border-primary rounded-lg"
                   >
                     <div className="flex items-center gap-3">
                       <FileText size={16} className="text-primary" />
