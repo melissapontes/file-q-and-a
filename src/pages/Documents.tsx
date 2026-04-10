@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { FileText, Tag, Trash2, Edit, CheckCircle2, XCircle, RefreshCw, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTagColor } from "@/lib/tagColors";
 
@@ -27,10 +27,34 @@ const Documents = () => {
   const [editName, setEditName] = useState<string>('');
   const [editTags, setEditTags] = useState<string>('');
   const [reuploadingDoc, setReuploadingDoc] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Collect all unique tags from documents
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    documents.forEach(doc => {
+      (doc.tags || []).forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [documents]);
+
+  // Filter documents based on selected tags
+  const filteredDocuments = useMemo(() => {
+    if (selectedTags.length === 0) return documents;
+    return documents.filter(doc =>
+      selectedTags.every(selectedTag => doc.tags?.includes(selectedTag))
+    );
+  }, [documents, selectedTags]);
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -218,6 +242,48 @@ const Documents = () => {
           className="hidden"
         />
 
+        {/* Tag Filter Bar */}
+        {allTags.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter size={14} className="text-muted-foreground" />
+              <span className="text-xs text-muted-foreground font-medium">Filtrar por tag</span>
+              {selectedTags.length > 0 && (
+                <button
+                  onClick={() => setSelectedTags([])}
+                  className="text-xs text-primary hover:underline ml-1"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {allTags.map(tag => {
+                const colors = getTagColor(tag);
+                const isSelected = selectedTags.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-all duration-150"
+                    style={{
+                      backgroundColor: isSelected ? colors.bg : `${colors.bg}33`,
+                      color: isSelected ? colors.fg : colors.bg,
+                      border: `1.5px solid ${colors.bg}`,
+                      opacity: isSelected ? 1 : 0.75,
+                      boxShadow: isSelected ? `0 0 0 2px ${colors.bg}44` : 'none',
+                    }}
+                    aria-pressed={isSelected}
+                  >
+                    <Tag size={9} />
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <Card className="p-2 sm:p-4 md:p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
           {documents.length === 0 ? (
             <div className="text-center py-12">
@@ -231,9 +297,20 @@ const Documents = () => {
                 Fazer Upload
               </Button>
             </div>
+          ) : filteredDocuments.length === 0 ? (
+            <div className="text-center py-10">
+              <Tag className="mx-auto mb-3 w-12 h-12 text-muted-foreground opacity-40" />
+              <p className="text-muted-foreground text-sm">Nenhum documento com as tags selecionadas</p>
+              <button
+                onClick={() => setSelectedTags([])}
+                className="mt-3 text-xs text-primary hover:underline"
+              >
+                Limpar filtros
+              </button>
+            </div>
           ) : (
             <div className="space-y-4">
-              {documents.map((doc) => (
+              {filteredDocuments.map((doc) => (
                 <div
                   key={doc.id}
                   className="p-3 sm:p-4 bg-card rounded-lg border border-border shadow-sm"
