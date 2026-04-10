@@ -261,17 +261,18 @@ const Documents = () => {
               {allTags.map(tag => {
                 const colors = getTagColor(tag);
                 const isSelected = selectedTags.includes(tag);
+                // Convert "hsl(H S% L%)" → "hsl(H S% L% / 0.18)" for translucent unselected bg
+                const bgTranslucent = colors.bg.replace(')', ' / 0.18)');
                 return (
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-all duration-150"
                     style={{
-                      backgroundColor: isSelected ? colors.bg : `${colors.bg}33`,
+                      backgroundColor: isSelected ? colors.bg : bgTranslucent,
                       color: isSelected ? colors.fg : colors.bg,
                       border: `1.5px solid ${colors.bg}`,
-                      opacity: isSelected ? 1 : 0.75,
-                      boxShadow: isSelected ? `0 0 0 2px ${colors.bg}44` : 'none',
+                      boxShadow: isSelected ? `0 0 0 2px ${bgTranslucent}` : 'none',
                     }}
                     aria-pressed={isSelected}
                   >
