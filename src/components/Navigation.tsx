@@ -19,14 +19,19 @@ const Navigation = () => {
 
   return (
     <>
-      <nav className="bg-glass border-b border-glass backdrop-blur-xl relative z-50">
-        <div className="container mx-auto px-4 py-2">
+      <nav className="bg-glass border-b border-border backdrop-blur-xl relative z-50">
+        <div className="container mx-auto px-4 py-2.5">
           <div className="flex items-center justify-between">
-            {/* Logo + Nome */}
-            <Link to="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
-              <img src={logo} alt="Logo" className="h-10 w-auto object-contain" />
-              <span className="font-bold text-base sm:text-lg bg-gradient-primary bg-clip-text text-transparent leading-tight">
-                RAG Nefro & Uro
+            {/* Marca */}
+            <Link to="/" className="flex items-center gap-2.5" onClick={() => setOpen(false)}>
+              <img src={logo} alt="" className="h-9 w-auto object-contain" />
+              <span className="flex items-baseline gap-1.5 leading-none">
+                <span className="font-serif text-lg sm:text-xl font-semibold text-foreground">
+                  Nefro <span className="text-brand">&amp;</span> Uro
+                </span>
+                <span className="hidden sm:inline text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  vet
+                </span>
               </span>
             </Link>
 

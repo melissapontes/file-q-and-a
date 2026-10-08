@@ -2,125 +2,132 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/*
+  RAG Nefro & Uro — sistema de design "formulário clínico".
+  Papel frio + tinta azul-ardósia + um único brilho âmbar. Serifa Spectral nos títulos,
+  Hanken Grotesk no corpo. Todas as cores em HSL.
 */
 
 @layer base {
-  /* Light Mode (default) */
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 10%;
+    --background: 214 20% 97%;      /* papel frio off-white */
+    --foreground: 210 33% 13%;      /* tinta azul-ardósia */
 
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 10%;
+    --card-foreground: 210 33% 13%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
+    --popover-foreground: 210 33% 13%;
 
-    --primary: 174 74% 40%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 205 45% 22%;         /* navy profundo — ações e marca */
+    --primary-foreground: 210 30% 98%;
 
-    --secondary: 200 58% 45%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 210 16% 93%;
+    --secondary-foreground: 205 40% 20%;
 
-    --muted: 240 5% 92%;
-    --muted-foreground: 240 5% 40%;
+    --muted: 210 16% 94%;
+    --muted-foreground: 210 10% 42%;
 
-    --accent: 200 58% 45%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 210 16% 93%;          /* hover neutro (semântica shadcn) */
+    --accent-foreground: 205 45% 22%;
 
-    --destructive: 0 62.8% 45%;
+    /* O brilho da marca — usado com parcimônia: enviar, foco, citações */
+    --brand: 36 68% 42%;            /* âmbar/ocre */
+    --brand-foreground: 40 60% 98%;
+
+    /* Estado "citado / verificado" */
+    --verified: 152 42% 30%;        /* sálvia */
+    --verified-soft: 152 40% 94%;
+
+    --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5% 85%;
-    --input: 240 5% 90%;
-    --ring: 174 74% 40%;
+    --border: 210 16% 89%;          /* hairline */
+    --input: 210 16% 89%;
+    --ring: 36 68% 42%;             /* foco âmbar */
 
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
-    /* Light mode gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(174 74% 40%), hsl(200 58% 45%));
-    --gradient-secondary: linear-gradient(135deg, hsl(240 5% 95%), hsl(240 5% 90%));
-    --gradient-accent: linear-gradient(90deg, hsl(174 74% 40% / 0.1), hsl(200 58% 45% / 0.1));
-    
-    /* Light mode glass effect */
-    --glass-bg: hsl(0 0% 100% / 0.0);
-    --glass-border: hsl(174 74% 40% / 0.5);
-    
-    /* Light mode shadows */
-    --shadow-glow: 0 0 40px hsl(174 74% 40% / 0.2);
-    --shadow-soft: 0 8px 32px hsl(240 10% 10% / 0.1);
+    /* Compat: utilitários custom reaproveitados, agora tonais e discretos */
+    --gradient-primary: linear-gradient(135deg, hsl(205 45% 22%), hsl(205 40% 30%));
+    --gradient-secondary: linear-gradient(135deg, hsl(210 16% 95%), hsl(210 16% 91%));
+    --gradient-accent: linear-gradient(90deg, hsl(36 68% 42% / 0.08), hsl(36 68% 42% / 0));
 
-    /* Custom tag color */
-    --tag: 183 100% 34%;
-    --tag-foreground: 0 0% 100%;
+    --glass-bg: hsl(0 0% 100% / 0.78);
+    --glass-border: hsl(210 16% 89%);
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --shadow-glow: 0 1px 2px hsl(210 20% 20% / 0.06);
+    --shadow-soft: 0 1px 2px hsl(210 20% 20% / 0.06), 0 10px 30px hsl(210 24% 18% / 0.07);
+
+    --tag: 36 68% 42%;
+    --tag-foreground: 40 60% 98%;
+
+    --sidebar-background: 214 20% 97%;
+    --sidebar-foreground: 210 10% 30%;
+    --sidebar-primary: 205 45% 22%;
+    --sidebar-primary-foreground: 210 30% 98%;
+    --sidebar-accent: 210 16% 93%;
+    --sidebar-accent-foreground: 205 45% 22%;
+    --sidebar-border: 210 16% 89%;
+    --sidebar-ring: 36 68% 42%;
   }
 
-  /* Dark Mode */
   .dark {
-    --background: 230 6% 20%;
-    --foreground: 0 0% 98%;
+    --background: 212 28% 9%;       /* noite azul-ardósia */
+    --foreground: 210 16% 92%;
 
-    --card: 230 6% 24%;
-    --card-foreground: 0 0% 98%;
+    --card: 212 24% 13%;
+    --card-foreground: 210 16% 92%;
 
-    --popover: 230 6% 24%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 212 24% 13%;
+    --popover-foreground: 210 16% 92%;
 
-    --primary: 174 74% 56%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 205 44% 48%;
+    --primary-foreground: 210 30% 98%;
 
-    --secondary: 200 58% 50%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 212 20% 18%;
+    --secondary-foreground: 210 16% 90%;
 
-    --muted: 230 6% 30%;
-    --muted-foreground: 230 5% 75%;
+    --muted: 212 18% 17%;
+    --muted-foreground: 210 12% 64%;
 
-    --accent: 200 58% 50%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 212 20% 18%;
+    --accent-foreground: 210 16% 92%;
 
-    --destructive: 0 62.8% 30.6%;
+    --brand: 38 82% 57%;            /* âmbar mais claro no escuro */
+    --brand-foreground: 212 40% 10%;
+
+    --verified: 152 46% 62%;
+    --verified-soft: 152 30% 16%;
+
+    --destructive: 0 55% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 230 6% 32%;
-    --input: 230 6% 27%;
-    --ring: 174 74% 56%;
+    --border: 212 16% 22%;
+    --input: 212 16% 20%;
+    --ring: 38 82% 57%;
 
-    /* Dark mode gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(174 74% 56%), hsl(200 58% 50%));
-    --gradient-secondary: linear-gradient(135deg, hsl(230 6% 24%), hsl(230 6% 28%));
-    --gradient-accent: linear-gradient(90deg, hsl(174 74% 56% / 0.1), hsl(200 58% 50% / 0.1));
+    --gradient-primary: linear-gradient(135deg, hsl(205 44% 48%), hsl(205 40% 38%));
+    --gradient-secondary: linear-gradient(135deg, hsl(212 24% 14%), hsl(212 22% 18%));
+    --gradient-accent: linear-gradient(90deg, hsl(38 82% 57% / 0.1), hsl(38 82% 57% / 0));
 
-    /* Dark mode glass effect */
-    --glass-bg: hsl(230 6% 20% / 0.8);
-    --glass-border: hsl(0 0% 100% / 0.1);
+    --glass-bg: hsl(212 28% 11% / 0.82);
+    --glass-border: hsl(212 16% 22%);
 
-    /* Dark mode shadows */
-    --shadow-glow: 0 0 40px hsl(174 74% 56% / 0.3);
-    --shadow-soft: 0 8px 32px hsl(230 6% 10% / 0.4);
+    --shadow-glow: 0 1px 2px hsl(0 0% 0% / 0.3);
+    --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.3), 0 12px 32px hsl(0 0% 0% / 0.35);
 
-    /* Custom tag color */
-    --tag: 183 100% 34%;
-    --tag-foreground: 0 0% 100%;
+    --tag: 38 82% 57%;
+    --tag-foreground: 212 40% 10%;
 
-    --sidebar-background: 230 6% 16%;
-    --sidebar-foreground: 230 5% 90%;
-    --sidebar-primary: 174 74% 56%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 230 6% 30%;
-    --sidebar-accent-foreground: 230 5% 90%;
-    --sidebar-border: 230 6% 32%;
-    --sidebar-ring: 174 74% 56%;
+    --sidebar-background: 212 30% 10%;
+    --sidebar-foreground: 210 14% 82%;
+    --sidebar-primary: 38 82% 57%;
+    --sidebar-primary-foreground: 212 40% 10%;
+    --sidebar-accent: 212 20% 18%;
+    --sidebar-accent-foreground: 210 14% 82%;
+    --sidebar-border: 212 16% 22%;
+    --sidebar-ring: 38 82% 57%;
   }
 }
 
@@ -129,7 +136,43 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv01";
+  }
+
+  /* Títulos em serifa — a voz clínica/editorial */
+  h1, h2, h3, .font-serif {
+    font-family: "Spectral", Georgia, serif;
+  }
+}
+
+@layer utilities {
+  .text-brand { color: hsl(var(--brand)); }
+  .bg-brand { background-color: hsl(var(--brand)); }
+  .border-brand { border-color: hsl(var(--brand)); }
+
+  /* Barra lateral fina que marca o card de resposta do assistente */
+  .rule-brand { box-shadow: inset 3px 0 0 hsl(var(--brand)); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *:not(.animate-spin), *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    /* Spinners de carregamento continuam girando — é status, não decoração */
+    .animate-spin {
+      animation: rag-spin 1s linear infinite !important;
+    }
+  }
+
+  @keyframes rag-spin {
+    to { transform: rotate(360deg); }
   }
 }

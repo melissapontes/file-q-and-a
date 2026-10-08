@@ -40,8 +40,7 @@ serve(async (req) => {
     const { data, error } = await supabase
       .from('documents')
       .select('tags, original_name')
-      .eq('processing_status', 'completed')
-      .not('openai_file_id', 'is', null);
+      .eq('processing_status', 'completed');
 
     if (error) throw error;
 

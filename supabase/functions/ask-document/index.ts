@@ -1,857 +1,207 @@
+// Pergunta → busca híbrida no pgvector → resposta do Gemini com citações. Sem OpenAI.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import {
+  buildTsQuery,
+  detectQuestionSpecies,
+  embedTexts,
+  geminiGenerate,
+  toPgVector,
+} from "../_shared/rag.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-gemini-key',
 };
 
-const ASSISTANT_INSTRUCTIONS = `Voce e um assistente especialista em nefrologia e urologia veterinaria.
+const SYSTEM_INSTRUCTIONS = `Voce e um assistente especialista em nefrologia e urologia veterinaria.
 
 REGRAS DE GROUNDING (OBRIGATORIAS):
-1. Use APENAS as passagens retornadas pelo file_search nesta consulta.
-2. Se as passagens retornadas nao contiverem informacao suficiente para responder, diga: "Nao encontrei informacoes suficientes sobre [topico] nos documentos disponiveis." Nao complemente com conhecimento proprio.
-3. Cite um documento [N] SOMENTE quando a informacao especifica que voce esta afirmando veio do texto desse documento. Se voce nao pode apontar o trecho exato, nao cite esse documento.
-4. NUNCA invente dados, dosagens, valores de referencia ou diagnosticos.
+1. Use APENAS os TRECHOS fornecidos na mensagem do usuario.
+2. Se os trechos nao contiverem informacao suficiente para responder, diga: "Nao encontrei informacoes suficientes sobre [topico] nos documentos disponiveis." Nao complemente com conhecimento proprio.
+3. Cite o trecho [N] SOMENTE quando a informacao especifica que voce esta afirmando veio do texto desse trecho. Se voce nao pode apontar o trecho exato, nao cite.
+4. NUNCA invente dados, dosagens, valores de referencia ou diagnosticos. Copie doses, unidades, vias e frequencias exatamente como estao no trecho.
 
 FORMATO DE RESPOSTA:
 - Organize em topicos numerados quando houver multiplos pontos
 - Inclua detalhes especificos quando presentes: medicamentos, dosagens (em **negrito**), via de administracao, frequencia, valores de referencia
-- Use citacoes numeradas [1], [2], [3] imediatamente apos cada informacao extraida de um documento
-- A lista de referencias sera gerada automaticamente
+- Use citacoes [1], [2] imediatamente apos cada informacao, com o numero do TRECHO. Para varios trechos use [1][3]
+- A lista de referencias sera gerada automaticamente; nao a escreva
 
 IDIOMA:
 - SEMPRE responda em PORTUGUES (pt-BR)
 - Os documentos podem estar em ingles, mas sua resposta deve ser em portugues`;
 
-const ASSISTANT_TOOLS = [{
-  type: 'file_search',
-  file_search: {
-    max_num_results: 20,
-    ranking_options: {
-      ranker: 'auto',
-      //score_threshold: 0.0
-      score_threshold: 0.0
-    }
-  },
-}];
+const MATCH_COUNT = 8;
 
-async function createAssistant(openaiApiKey: string, vectorStoreId: string): Promise<{ id: string }> {
-  console.log('Creating new Assistant with semantic search...');
-  const response = await fetch('https://api.openai.com/v1/assistants', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openaiApiKey}`,
-      'Content-Type': 'application/json',
-      'OpenAI-Beta': 'assistants=v2',
-    },
-    body: JSON.stringify({
-      name: 'Nefrologia Veterinária RAG',
-      instructions: ASSISTANT_INSTRUCTIONS,
-      model: 'gpt-4o',
-      tools: ASSISTANT_TOOLS,
-      tool_resources: {
-        file_search: {
-          vector_store_ids: [vectorStoreId]
-        }
-      },
-    }),
-  });
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('Error creating assistant:', error);
-    throw new Error(`Erro ao criar assistente: ${error}`);
-  }
-
-  const assistant = await response.json();
-  console.log('✅ Assistant created:', assistant.id);
-  return assistant;
+function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  const step = 0x8000;
+  for (let i = 0; i < bytes.length; i += step) bin += String.fromCharCode(...bytes.subarray(i, i + step));
+  return btoa(bin);
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
-  // Verify JWT authentication
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return json({ error: 'Unauthorized' }, 401);
 
   try {
-    console.log('Ask document function called');
+    // TEMPORÁRIO: x-gemini-key só vale enquanto o secret GEMINI_API_KEY não está gravado no projeto. Remover depois.
+    const geminiKey = Deno.env.get('GEMINI_API_KEY') || req.headers.get('x-gemini-key');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    if (!geminiKey) throw new Error('GEMINI_API_KEY não configurada nas Edge Functions');
 
-    // Get environment variables
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const vectorStoreId = Deno.env.get('OPENAI_VECTOR_STORE_ID');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabase = createClient(supabaseUrl, serviceKey);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (authError || !user) return json({ error: 'Unauthorized' }, 401);
 
-    if (!openaiApiKey || !vectorStoreId) {
-      throw new Error('Missing required environment variables: OPENAI_API_KEY or OPENAI_VECTOR_STORE_ID');
-    }
-
-    // Validate JWT and get authenticated user
-    if (supabaseUrl && supabaseServiceKey) {
-      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
-      const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey);
-      const jwt = authHeader.replace('Bearer ', '');
-      const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(jwt);
-      if (authError || !user) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.log('Authenticated user:', user.id);
-    }
-
-    // Parse request - can be JSON or FormData
+    // ── Entrada: JSON ou multipart (com arquivos/imagens anexados à pergunta) ──
     const contentType = req.headers.get('content-type') || '';
     let question = '';
-    let uploadedFileIds: string[] = [];
-    let imageContext = '';
+    const attachmentParts: any[] = [];
+    let attachedText = '';
 
     if (contentType.includes('multipart/form-data')) {
-      // Handle file uploads
       const formData = await req.formData();
-      question = formData.get('question') as string;
-      const files = formData.getAll('files') as File[];
-
-      console.log(`Processing question with ${files.length} attached files`);
-
-      // Process files based on type
-      for (const file of files) {
+      question = (formData.get('question') as string) || '';
+      for (const file of formData.getAll('files') as File[]) {
         try {
-          const fileName = file.name.toLowerCase();
-          const isImage = fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || fileName.endsWith('.png');
-
-          if (isImage) {
-            // Process image with Vision API
-            console.log(`Processing image file with Vision API: ${file.name}`);
-            const fileBuffer = await file.arrayBuffer();
-            const base64Image = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-            const mimeType = file.type || 'image/jpeg';
-
-            // Use Vision API to extract text from image
-            const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${openaiApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                  {
-                    role: 'user',
-                    content: [
-                      {
-                        type: 'text',
-                        text: 'Por favor, extraia TODAS as informações deste documento médico/laudo. Liste todos os valores, resultados, diagnósticos e observações presentes. Seja detalhado e preciso.'
-                      },
-                      {
-                        type: 'image_url',
-                        image_url: {
-                          url: `data:${mimeType};base64,${base64Image}`
-                        }
-                      }
-                    ]
-                  }
-                ],
-                max_tokens: 2000
-              }),
-            });
-
-            if (visionResponse.ok) {
-              const visionData = await visionResponse.json();
-              const extractedText = visionData.choices[0]?.message?.content || '';
-              imageContext += `\n\n**Conteúdo extraído de ${file.name}:**\n${extractedText}\n`;
-              console.log(`Extracted text from image: ${file.name}`);
-            } else {
-              console.error(`Failed to process image ${file.name}:`, await visionResponse.text());
-              imageContext += `\n\n[Erro ao processar imagem: ${file.name}]\n`;
-            }
+          const name = file.name.toLowerCase();
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (/\.(jpe?g|png)$/.test(name)) {
+            attachmentParts.push({ inline_data: { mime_type: file.type || 'image/jpeg', data: toBase64(bytes) } });
+          } else if (name.endsWith('.pdf')) {
+            attachmentParts.push({ inline_data: { mime_type: 'application/pdf', data: toBase64(bytes) } });
           } else {
-            // Upload text documents to OpenAI for file_search
-            const fileBuffer = await file.arrayBuffer();
-            const blob = new Blob([fileBuffer], { type: file.type });
-
-            const uploadFormData = new FormData();
-            uploadFormData.append('file', blob, file.name);
-            uploadFormData.append('purpose', 'assistants');
-
-            const uploadResponse = await fetch('https://api.openai.com/v1/files', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${openaiApiKey}`,
-              },
-              body: uploadFormData,
-            });
-
-            if (uploadResponse.ok) {
-              const uploadData = await uploadResponse.json();
-              uploadedFileIds.push(uploadData.id);
-              console.log(`Uploaded document: ${file.name} (ID: ${uploadData.id})`);
-            } else {
-              console.error(`Failed to upload file ${file.name}:`, await uploadResponse.text());
-            }
+            attachedText += `\n\n[Arquivo anexado: ${file.name}]\n${new TextDecoder().decode(bytes).slice(0, 20000)}`;
           }
-        } catch (error) {
-          console.error(`Error processing file ${file.name}:`, error);
-        }
-      }
-    } else {
-      // JSON request (no files)
-      const body = await req.json();
-      question = body.question;
-    }
-
-    if (!question) {
-      throw new Error('Question is required');
-    }
-
-    console.log('Processing question:', question);
-    console.log(`Using vector store: ${vectorStoreId}`);
-
-    // Query logging data
-    let queryLogData: any = {
-      documents_fetched: 0,
-      documents_analyzed: [],
-      final_selection: 'all_via_semantic_search'
-    };
-
-    // Fetch document metadata from Supabase for logging purposes only
-    let documentsMetadata: { openai_file_id: string; original_name: string; metadata_file_id: string | null; tags: string[] }[] = [];
-    if (supabaseUrl && supabaseServiceKey) {
-      try {
-        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-        const { data, error } = await supabase
-          .from('documents')
-          .select('openai_file_id, original_name, metadata_file_id, tags')
-          .not('openai_file_id', 'is', null);
-
-        if (!error && data) {
-          documentsMetadata = data.map(doc => ({
-            openai_file_id: doc.openai_file_id!,
-            original_name: doc.original_name,
-            metadata_file_id: doc.metadata_file_id || null,
-            tags: doc.tags || []
-          }));
-          queryLogData.documents_fetched = documentsMetadata.length;
-          console.log(`📚 Total documents available: ${documentsMetadata.length}`);
-        }
-      } catch (e) {
-        console.error('Error fetching documents metadata:', e);
-      }
-    }
-
-    // Mapa file_id → filename; metadata companion files mapeiam para o nome do doc principal
-    const fileIdToNameMap = new Map<string, string>();
-    const metadataFileIds = new Set<string>();
-    for (const doc of documentsMetadata) {
-      fileIdToNameMap.set(doc.openai_file_id, doc.original_name);
-      if (doc.metadata_file_id) {
-        fileIdToNameMap.set(doc.metadata_file_id, doc.original_name);
-        metadataFileIds.add(doc.metadata_file_id);
-      }
-    }
-    console.log(`🗂️  Created local file ID map with ${fileIdToNameMap.size} entries`);
-
-    console.log(`\n🔍 Search strategy: Using semantic vector search across ALL documents`);
-    console.log(`   OpenAI's file_search will automatically find the most relevant documents`);
-    console.log(`   No pre-filtering by tags - pure semantic similarity matching\n`);
-
-    // 🌐 Busca bilíngue: traduz a pergunta para EN para melhorar o recall cross-language.
-    // Os documentos estão em inglês; embeddings de queries em PT ficam em coordenadas
-    // diferentes das queries em EN, causando miss de documentos relevantes.
-    let translatedQuestion = '';
-    try {
-      console.log('🌐 Translating question to EN for bilingual file_search...');
-      const translationResp = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a veterinary medical translator. Translate the following question to English.
-Then expand it with 3-5 relevant synonyms or related clinical terms commonly used in veterinary literature (e.g. "treat" → also include "management, therapy, treatment, guidelines, protocol").
-Output a single enriched English search query. No explanations, no bullet points — just the query text.`
-            },
-            { role: 'user', content: question }
-          ],
-          max_tokens: 300,
-          temperature: 0
-        }),
-      });
-      if (translationResp.ok) {
-        const translationData = await translationResp.json();
-        const translation = translationData.choices[0]?.message?.content?.trim() || '';
-        if (translation && translation.toLowerCase() !== question.toLowerCase()) {
-          translatedQuestion = translation;
-          console.log(`✅ EN translation: ${translatedQuestion}`);
-        }
-      }
-    } catch (e) {
-      console.log('⚠️ Translation failed, using original question only');
-    }
-
-    // Step 2: Get or Create Assistant with file_search
-    const existingAssistantId = Deno.env.get('OPENAI_ASSISTANT_ID');
-    let assistant: { id: string };
-    let assistantIsNew = false;
-
-    if (existingAssistantId) {
-      // Try to reuse existing persistent assistant
-      console.log(`Reusing persistent assistant: ${existingAssistantId}`);
-      const getResponse = await fetch(`https://api.openai.com/v1/assistants/${existingAssistantId}`, {
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
-      });
-
-      if (getResponse.ok) {
-        assistant = await getResponse.json();
-        console.log('✅ Persistent assistant retrieved:', assistant.id);
-        // Sync tools config: garante que mudanças no código (max_num_results, instruções)
-        // se apliquem ao assistente persistente em vez de ficarem presas na criação inicial.
-        try {
-          await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-              'OpenAI-Beta': 'assistants=v2',
-            },
-            body: JSON.stringify({
-              instructions: ASSISTANT_INSTRUCTIONS,
-              tools: ASSISTANT_TOOLS,
-              tool_resources: {
-                file_search: { vector_store_ids: [vectorStoreId] }
-              },
-            }),
-          });
-          console.log('✅ Persistent assistant config synced');
         } catch (e) {
-          console.warn('⚠️ Could not sync assistant config:', e);
+          console.error(`Erro ao processar anexo ${file.name}:`, e);
         }
-      } else {
-        console.warn('⚠️ Could not retrieve persistent assistant, creating new one...');
-        existingAssistantId && console.warn(`   (ID ${existingAssistantId} may be invalid)`);
-        assistant = await createAssistant(openaiApiKey, vectorStoreId);
-        assistantIsNew = true;
       }
     } else {
-      console.log('No OPENAI_ASSISTANT_ID set, creating new assistant...');
-      assistant = await createAssistant(openaiApiKey, vectorStoreId);
-      assistantIsNew = true;
-      console.log(`💡 To reuse this assistant, set env var: OPENAI_ASSISTANT_ID=${assistant.id}`);
+      question = (await req.json()).question;
     }
+    if (!question) throw new Error('Question is required');
+    console.log('Question:', question);
 
-    // Step 3: Create a Thread
-    console.log('Creating Thread...');
-    const threadResponse = await fetch('https://api.openai.com/v1/threads', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2',
-      },
-      body: JSON.stringify({}),
-    });
-
-    if (!threadResponse.ok) {
-      const error = await threadResponse.text();
-      console.error('Error creating thread:', error);
-      throw new Error(`Erro ao criar thread: ${error}`);
-    }
-
-    const thread = await threadResponse.json();
-    console.log('Thread created:', thread.id);
-
-    // Step 4: Add user message to Thread (with image context if available)
-    console.log('Adding message to thread...');
-
-    // Detecta se a pergunta é sobre protocolo de tratamento
+    // ── Contexto determinístico (sem IA) ──
+    const species = detectQuestionSpecies(question);
+    const speciesFilter = species === 'cat' || species === 'dog' ? species : null;
     const isProtocolQuery = /protocolo/i.test(question);
 
-    // Priorização por tags: identifica documentos cujas tags coincidem com a query
-    // Quando é query de protocolo, também prioriza docs com "protocolo" no nome ou nas tags
-    const queryLower = (question + ' ' + translatedQuestion).toLowerCase();
-    const prioritizedDocs = documentsMetadata.filter(doc => {
-      const tagMatch = doc.tags.length > 0 && doc.tags.some(tag => queryLower.includes(tag.toLowerCase()));
-      const protocolMatch = isProtocolQuery && (
-        doc.original_name.toLowerCase().includes('protocolo') ||
-        doc.tags.some(tag => tag.toLowerCase().includes('protocolo'))
-      );
-      return tagMatch || protocolMatch;
+    // ── Busca: embedding da pergunta + busca híbrida com filtro de espécie ──
+    const [queryEmbedding] = await embedTexts([question], 'RETRIEVAL_QUERY', geminiKey, Date.now() + 20_000);
+    const { data: matches, error: matchError } = await supabase.rpc('match_chunks', {
+      query_embedding: toPgVector(queryEmbedding),
+      query_text: buildTsQuery(question),
+      p_species: speciesFilter,
+      match_count: MATCH_COUNT,
     });
+    if (matchError) throw new Error(`Falha na busca: ${matchError.message}`);
+    const chunks: any[] = matches || [];
+    console.log(`Retrieved ${chunks.length} chunks (species filter: ${speciesFilter ?? 'none'})`);
 
-    // Pergunta bilíngue + injeção de títulos dos docs priorizados diretamente na query
-    let fullQuestion = question;
-    if (translatedQuestion) {
-      fullQuestion += `\n\n[Search context - EN]: ${translatedQuestion}`;
-    }
+    // ── Prompt ──
+    const pageLabel = (c: any) => c.page_start === c.page_end || !c.page_end ? `p. ${c.page_start}` : `p. ${c.page_start}-${c.page_end}`;
+    const context = chunks.length
+      ? chunks.map((c, i) => `[${i + 1}] Fonte: ${c.original_name} (${pageLabel(c)})\n${c.content}`).join('\n\n---\n\n')
+      : '(nenhum trecho encontrado)';
 
-    if (prioritizedDocs.length > 0) {
-      const titlesForSearch = prioritizedDocs.map(d => d.original_name.replace(/\.[^.]+$/, '')).join('. ');
-      fullQuestion += `\n\n[Priority documents for this query]: ${titlesForSearch}`;
+    const extra: string[] = [];
+    if (speciesFilter === 'cat') extra.push('A pergunta é sobre GATOS. Se um trecho tratar apenas de cães, NÃO use suas doses ou valores; se só houver dados de cães, informe isso explicitamente.');
+    if (speciesFilter === 'dog') extra.push('A pergunta é sobre CÃES. Se um trecho tratar apenas de gatos, NÃO use suas doses ou valores; se só houver dados de gatos, informe isso explicitamente.');
+    if (isProtocolQuery) extra.push('Esta pergunta é sobre protocolo de tratamento: inclua medicamentos, doses (em **negrito**), via de administração e frequência. Se os trechos não trouxerem doses, informe isso explicitamente.');
 
-      const priorityList = prioritizedDocs.map(d => `- "${d.original_name}"`).join('\n');
-      fullQuestion += `\n\n[INSTRUÇÃO]: O usuário marcou os documentos abaixo como referência principal para este tema. USE O CONTEÚDO DELES PREFERENCIALMENTE. Apenas complemente com outros documentos se necessário:\n${priorityList}`;
-      console.log(`🎯 ${prioritizedDocs.length} prioritized document(s) injected: ${titlesForSearch}`);
-    }
+    const userText = `TRECHOS DOS DOCUMENTOS:\n\n${context}\n\n=====\n${attachedText ? `Material anexado pelo usuário:${attachedText}\n\n` : ''}PERGUNTA: ${question}`;
 
-    if (isProtocolQuery) {
-      fullQuestion += `\n\n[INSTRUÇÃO PROTOCOLO]: Esta pergunta é sobre protocolo de tratamento. OBRIGATORIAMENTE inclua na resposta: medicamentos, doses (em **negrito**), via de administração e frequência. Se não encontrar doses nos documentos, informe explicitamente.`;
-      console.log('📋 Protocol query detected — doses/medications required in response');
-    }
+    const data = await geminiGenerate({
+      systemInstruction: { parts: [{ text: [SYSTEM_INSTRUCTIONS, ...extra].join('\n\n') }] },
+      contents: [{ role: 'user', parts: [...attachmentParts, { text: userText }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 4096 },
+    }, geminiKey);
+    console.log(`Answered with model ${data._model}`);
 
-    if (imageContext) {
-      fullQuestion += imageContext;
-    }
+    const rawAnswer: string = data.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('') ?? '';
 
-    const messageBody: any = {
-      role: 'user',
-      content: fullQuestion
-    };
+    // ── Citações: [n] do modelo → documentos reais (valida, renumera por documento) ──
+    const docNumber = new Map<string, number>(); // original_name → nº da referência
+    const references: string[] = [];
+    const citedChunkIdx = new Set<number>();
 
-    // Attach ad-hoc files uploaded with the question (if any)
-    if (uploadedFileIds.length > 0) {
-      messageBody.attachments = uploadedFileIds.map(fileId => ({
-        file_id: fileId,
-        tools: [{ type: 'file_search' }]
-      }));
-      console.log(`Attaching ${uploadedFileIds.length} additional files to message`);
-    }
-
-    const messageResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2',
-      },
-      body: JSON.stringify(messageBody),
-    });
-
-    if (!messageResponse.ok) {
-      const error = await messageResponse.text();
-      console.error('Error adding message:', error);
-      throw new Error(`Erro ao adicionar mensagem: ${error}`);
-    }
-
-    console.log('Message added to thread');
-
-    // Step 5: Run the Assistant
-    console.log('Running assistant with semantic search...');
-    const runResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Beta': 'assistants=v2',
-      },
-      body: JSON.stringify({
-        assistant_id: assistant.id
-      }),
-    });
-
-    if (!runResponse.ok) {
-      const error = await runResponse.text();
-      console.error('Error running assistant:', error);
-      throw new Error(`Erro ao executar assistente: ${error}`);
-    }
-
-    const run = await runResponse.json();
-    console.log('Run started:', run.id);
-
-    // Step 6: Poll for completion
-    let runStatus = run.status;
-    let attempts = 0;
-    const maxAttempts = 120; // 120 seconds max for thorough semantic search
-
-    while (runStatus !== 'completed' && runStatus !== 'failed' && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-
-      const statusResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}`, {
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
-      });
-
-      if (!statusResponse.ok) {
-        const error = await statusResponse.text();
-        console.error('Error checking run status:', error);
-        throw new Error(`Erro ao verificar status: ${error}`);
+    let answer = rawAnswer.trim() || 'Desculpe, não consegui gerar uma resposta.';
+    answer = answer.replace(/\[(\d+(?:\s*[,;]\s*\d+)*)\]/g, (_m, list: string) => {
+      const nums: number[] = [];
+      for (const raw of list.split(/[,;]/)) {
+        const idx = parseInt(raw.trim(), 10) - 1;
+        const chunk = chunks[idx];
+        if (!chunk) continue; // citação inventada: removida
+        citedChunkIdx.add(idx);
+        if (!docNumber.has(chunk.original_name)) {
+          docNumber.set(chunk.original_name, references.length + 1);
+          references.push(chunk.original_name);
+        }
+        const n = docNumber.get(chunk.original_name)!;
+        if (!nums.includes(n)) nums.push(n);
       }
+      return nums.map((n) => `[${n}]`).join('');
+    });
+    // [1][1][1] → [1] (vários trechos do mesmo documento seguidos)
+    answer = answer.replace(/(\[(\d+)\])(?:\s*\[\2\])+/g, '$1');
 
-      const statusData = await statusResponse.json();
-      runStatus = statusData.status;
-      attempts++;
-      console.log(`Run status: ${runStatus} (attempt ${attempts}/${maxAttempts})`);
-    }
+    // ── Fontes consultadas (uma por documento) ──
+    const allRelevantSources: any[] = [];
+    const seen = new Set<string>();
+    chunks.forEach((c, i) => {
+      if (seen.has(c.document_id)) return;
+      seen.add(c.document_id);
+      allRelevantSources.push({
+        file_id: c.document_id,
+        filename: c.original_name,
+        score: c.score,
+        cited: chunks.some((x, j) => x.document_id === c.document_id && citedChunkIdx.has(j)),
+        pages: chunks.filter((x) => x.document_id === c.document_id).map(pageLabel),
+      });
+    });
 
-    if (runStatus === 'failed') {
-      throw new Error('O assistente falhou ao processar a pergunta');
-    }
-
-    if (runStatus !== 'completed') {
-      throw new Error('Timeout: O assistente demorou muito para responder');
-    }
-
-    // ✅ SOLUÇÃO 2: Extrair documentos consultados via Run Steps
-    console.log('Extracting consulted documents from Run Steps...');
-    let consultedDocuments: any[] = [];
+    // ── Log ──
     try {
-      const stepsResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/runs/${run.id}/steps`, {
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'OpenAI-Beta': 'assistants=v2',
-        },
+      await supabase.from('rag_query_logs').insert({
+        question,
+        documents_fetched: seen.size,
+        documents_analyzed: chunks.map((c, i) => ({
+          filename: c.original_name, pages: pageLabel(c), score: c.score, cited: citedChunkIdx.has(i),
+        })),
+        final_selection: `hybrid_search: ${chunks.length} trechos, ${citedChunkIdx.size} citados, modelo ${data._model}`,
+        answer_preview: answer.substring(0, 500) + (answer.length > 500 ? '...' : ''),
+        status: 'success',
       });
-
-      if (stepsResponse.ok) {
-        const stepsData = await stepsResponse.json();
-        const fileSearchSteps = stepsData.data.filter((step: any) => 
-          step.type === 'tool_calls' && 
-          step.step_details?.tool_calls?.some((tc: any) => tc.type === 'file_search')
-        );
-
-        for (const step of fileSearchSteps) {
-          for (const toolCall of step.step_details.tool_calls) {
-            if (toolCall.type === 'file_search' && toolCall.file_search?.results) {
-              consultedDocuments.push(...toolCall.file_search.results);
-            }
-          }
-        }
-        console.log(`📚 Documents consulted by file_search: ${consultedDocuments.length}`);
-      }
     } catch (e) {
-      console.log('Could not extract Run Steps:', e);
+      console.log('Could not save query log:', e);
     }
 
-    // Step 7: Get the assistant's response
-    console.log('Retrieving assistant response...');
-    const messagesResponse = await fetch(`https://api.openai.com/v1/threads/${thread.id}/messages`, {
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'OpenAI-Beta': 'assistants=v2',
+    return json({
+      answer,
+      references,
+      all_relevant_sources: allRelevantSources,
+      stats: {
+        total_consulted: allRelevantSources.length,
+        total_cited: references.length,
+        consultation_coverage: `${references.length}/${allRelevantSources.length} documentos citados`,
       },
     });
-
-    if (!messagesResponse.ok) {
-      const error = await messagesResponse.text();
-      console.error('Error retrieving messages:', error);
-      throw new Error(`Erro ao recuperar mensagens: ${error}`);
-    }
-
-    const messagesData = await messagesResponse.json();
-    const assistantMessages = messagesData.data.filter((msg: any) => msg.role === 'assistant');
-
-    let answer = 'Desculpe, não consegui gerar uma resposta.';
-    let references: string[] = [];
-    const citationMap = new Map<string, string>(); // Declare in outer scope for logging
-
-    if (assistantMessages.length > 0) {
-      const lastMessage = assistantMessages[0];
-      const textContent = lastMessage.content.find((c: any) => c.type === 'text');
-      if (textContent) {
-        let rawAnswer = textContent.text.value;
-
-        // Process annotations (citations)
-        const annotations = textContent.text.annotations || [];
-        console.log(`Found ${annotations.length} annotations in response`);
-
-        // ✅ Build a map of file IDs to filenames using LOCAL metadata (no API calls!)
-
-        for (const annotation of annotations) {
-          if (annotation.type === 'file_citation') {
-            const fileId = annotation.file_citation?.file_id;
-            if (fileId && !citationMap.has(fileId)) {
-              // Use local map first, fallback to API only if needed
-              const filename = fileIdToNameMap.get(fileId);
-              if (filename) {
-                citationMap.set(fileId, filename);
-                console.log(`✅ Reference found (local): ${filename}`);
-              } else {
-                // Fallback: file might be from ad-hoc upload
-                try {
-                  const fileResponse = await fetch(`https://api.openai.com/v1/files/${fileId}`, {
-                    headers: {
-                      'Authorization': `Bearer ${openaiApiKey}`,
-                    },
-                  });
-
-                  if (fileResponse.ok) {
-                    const fileData = await fileResponse.json();
-                    const fetchedFilename = fileData.filename || fileId;
-                    citationMap.set(fileId, fetchedFilename);
-                    console.log(`⚠️ Reference found (API fallback): ${fetchedFilename}`);
-                  } else {
-                    citationMap.set(fileId, fileId);
-                    console.warn(`❌ Could not resolve filename for: ${fileId}`);
-                  }
-                } catch (e) {
-                  console.error(`Error fetching file details for ${fileId}:`, e);
-                  citationMap.set(fileId, fileId);
-                }
-              }
-            }
-          }
-        }
-
-        // Validação anti-alucinação: remove citações cujo file_id não estava nos
-        // resultados reais do file_search desta execução. Evita que o modelo cite
-        // documentos que não foram recuperados (ou que venham de runs anteriores).
-        if (consultedDocuments.length > 0) {
-          const retrievedFileIds = new Set(
-            consultedDocuments.map((doc: any) => doc.file_id).filter(Boolean)
-          );
-          for (const fileId of Array.from(citationMap.keys())) {
-            if (!retrievedFileIds.has(fileId)) {
-              console.warn(`⚠️ CITAÇÃO INVÁLIDA removida: ${citationMap.get(fileId)} (${fileId}) — não estava nos resultados do file_search`);
-              citationMap.delete(fileId);
-            }
-          }
-
-          // Pós-processamento determinístico: se existem docs priorizados por tag
-          // nos resultados, remover citações de docs SEM a tag relevante
-          if (prioritizedDocs.length > 0) {
-            const prioritizedFileIds = new Set(prioritizedDocs.map(d => d.openai_file_id));
-            const prioritizedInResults = Array.from(citationMap.keys()).some(fid => prioritizedFileIds.has(fid));
-
-            if (prioritizedInResults) {
-              for (const fileId of Array.from(citationMap.keys())) {
-                if (!prioritizedFileIds.has(fileId)) {
-                  console.warn(`⚠️ CITAÇÃO REMOVIDA (não priorizada): ${citationMap.get(fileId)}`);
-                  citationMap.delete(fileId);
-                }
-              }
-            }
-          }
-        }
-
-        // Replace citation markers with inline references and build reference list
-        // IMPORTANT: annotation.text is the exact marker string (e.g. 【4:2†source】).
-        // We must match by annotation.text, NOT by the number inside the marker,
-        // because that number is an OpenAI-internal ID and NOT an array index.
-
-        // Create a map of filename to reference number
-        const filenameToNumber = new Map<string, number>();
-        const orderedReferences: string[] = [];
-        let refNumber = 1;
-
-        // First pass: assign numbers only to citations that passed validation
-        for (const annotation of annotations) {
-          if (annotation.type === 'file_citation') {
-            const fileId = annotation.file_citation?.file_id;
-            if (!citationMap.has(fileId)) continue; // skip invalidated citations
-            const filename = citationMap.get(fileId)!;
-            if (!filenameToNumber.has(filename)) {
-              filenameToNumber.set(filename, refNumber);
-              orderedReferences.push(filename);
-              refNumber++;
-            }
-          }
-        }
-
-        // Second pass: replace annotations with numbered citations [1], [2], etc.
-        // Citations that didn't pass validation have their markers stripped.
-        answer = rawAnswer;
-        for (const annotation of annotations) {
-          if (annotation.type === 'file_citation' && annotation.text) {
-            const fileId = annotation.file_citation?.file_id;
-            if (!citationMap.has(fileId)) {
-              // Citação inválida: remove o marcador do texto sem deixar rastro
-              answer = answer.split(annotation.text).join('');
-              continue;
-            }
-            const filename = citationMap.get(fileId)!;
-            const citationNumber = filenameToNumber.get(filename);
-            answer = answer.split(annotation.text).join(`[${citationNumber}]`);
-          }
-        }
-
-        // Populate references array for frontend rendering (in numerical order)
-        references = orderedReferences;
-        console.log(`Processed answer with ${references.length} unique references`);
-      }
-    }
-
-    console.log('Response retrieved successfully');
-
-    // Cleanup: Delete assistant only if it was newly created (not persistent)
-    if (assistantIsNew) {
-      try {
-        await fetch(`https://api.openai.com/v1/assistants/${assistant.id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${openaiApiKey}`,
-            'OpenAI-Beta': 'assistants=v2',
-          },
-        });
-        console.log('Temporary assistant deleted');
-      } catch (e) {
-        console.log('Could not delete assistant:', e);
-      }
-    } else {
-      console.log('Persistent assistant kept alive:', assistant.id);
-    }
-
-    console.log('Generated answer successfully');
-
-    // ✅ SOLUÇÃO 3: Save enhanced query log to database for analysis
-    if (supabaseUrl && supabaseServiceKey) {
-      try {
-        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.58.0');
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-        const answerPreview = answer.substring(0, 500) + (answer.length > 500 ? '...' : '');
-
-        // Build detailed document analysis
-        const consultedFileIds = new Set(consultedDocuments.map((doc: any) => doc.file_id || doc[0]));
-        const citedFileIds = new Set(citationMap.keys());
-        
-        const detailedAnalysis = consultedDocuments.map((doc: any) => {
-          const fileId = doc.file_id || doc[0];
-          const filename = fileIdToNameMap.get(fileId) || fileId;
-          return {
-            file_id: fileId,
-            filename: filename,
-            cited: citedFileIds.has(fileId),
-            score: doc.score
-          };
-        });
-
-        const stats = {
-          total_consulted: consultedDocuments.length,
-          total_cited: citationMap.size,
-          cited_percentage: consultedDocuments.length > 0 
-            ? ((citationMap.size / consultedDocuments.length) * 100).toFixed(1)
-            : '0'
-        };
-
-        console.log(`📊 Query Stats: ${stats.total_consulted} consulted, ${stats.total_cited} cited (${stats.cited_percentage}%)`);
-
-        const { error } = await supabase.from('rag_query_logs').insert({
-          question,
-          documents_fetched: queryLogData.documents_fetched,
-          documents_analyzed: detailedAnalysis,
-          final_selection: `semantic_search: ${stats.total_consulted} docs consulted, ${stats.total_cited} cited`,
-          answer_preview: answerPreview,
-          status: 'success'
-        });
-
-        if (error) {
-          console.error('Error saving query log:', error);
-        } else {
-          console.log('✅ Enhanced query log saved successfully');
-        }
-      } catch (e) {
-        console.log('Could not save query log:', e);
-      }
-    }
-
-    // ✅ STAGE 1: Build comprehensive list of ALL relevant documents consulted
-    const allRelevantSources = [];
-    const seenFiles = new Set();
-
-    for (const doc of consultedDocuments) {
-      const fileId = doc.file_id || doc[0];
-      const isMetadata = metadataFileIds.has(fileId) || (doc.filename && doc.filename.endsWith('_metadata.txt'));
-      if (!seenFiles.has(fileId) && !isMetadata) {
-        seenFiles.add(fileId);
-        const filename = fileIdToNameMap.get(fileId) || fileId;
-        allRelevantSources.push({
-          file_id: fileId,
-          filename: filename,
-          score: doc.score || null,
-          cited: citationMap.has(fileId)
-        });
-      }
-    }
-
-    // Sort by score (highest first), then by whether it was cited
-    allRelevantSources.sort((a, b) => {
-      if (b.score !== null && a.score !== null) {
-        return b.score - a.score;
-      }
-      if (b.cited !== a.cited) return b.cited ? 1 : -1;
-      return 0;
-    });
-
-    console.log(`📋 All relevant sources: ${allRelevantSources.length} documents consulted, ${citationMap.size} cited`);
-
-    // Cleanup uploaded files
-    if (uploadedFileIds.length > 0) {
-      console.log('Cleaning up temporary files...');
-      for (const fileId of uploadedFileIds) {
-        try {
-          await fetch(`https://api.openai.com/v1/files/${fileId}`, {
-            method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${openaiApiKey}`,
-            },
-          });
-        } catch (e) {
-          console.log(`Could not delete file ${fileId}:`, e);
-        }
-      }
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        answer, 
-        references,
-        all_relevant_sources: allRelevantSources,
-        stats: {
-          total_consulted: allRelevantSources.length,
-          total_cited: citationMap.size,
-          consultation_coverage: `${citationMap.size}/${allRelevantSources.length} documentos citados`
-        }
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
-
   } catch (error) {
     console.error('Error in ask-document function:', error);
-
-    // Extract specific error message
-    let errorMessage = 'Erro interno do servidor';
-    let errorDetails = '';
-
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      errorDetails = error.stack || '';
-    }
-
-    return new Response(
-      JSON.stringify({
-        error: errorMessage,
-        details: errorDetails
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    return json({
+      error: error instanceof Error ? error.message : 'Erro interno do servidor',
+      details: error instanceof Error ? error.stack || '' : '',
+    }, 500);
   }
 });

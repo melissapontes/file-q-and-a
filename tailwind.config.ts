@@ -13,12 +13,24 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["'Hanken Grotesk'", "ui-sans-serif", "system-ui", "sans-serif"],
+        serif: ["Spectral", "Georgia", "serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        brand: {
+          DEFAULT: "hsl(var(--brand) / <alpha-value>)",
+          foreground: "hsl(var(--brand-foreground))",
+        },
+        verified: {
+          DEFAULT: "hsl(var(--verified))",
+          soft: "hsl(var(--verified-soft))",
+        },
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
