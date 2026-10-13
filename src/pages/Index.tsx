@@ -36,7 +36,7 @@ const WELCOME =
 
 // Perguntas-exemplo que já exercitam o filtro de espécie e a detecção de protocolo/doses.
 const EXAMPLES = [
-  'Qual o protocolo de tratamento para doença renal crônica em gatos? Inclua as doses.',
+  'Quais são as principais medidas de manejo da doença renal crônica em gatos, conforme o estádio?',
   'Como manejar urolitíase por oxalato de cálcio em cães?',
   'Quais os valores de referência de creatinina e SDMA no estadiamento IRIS?',
 ];
@@ -200,7 +200,7 @@ const Index = () => {
             </p>
 
             <div className="mt-8">
-              <p className="text-xs font-medium text-muted-foreground mb-3">Comece por uma destas</p>
+              <p className="text-xs font-medium text-muted-foreground mb-3">Experimente perguntar:</p>
               <div className="flex flex-col gap-2">
                 {EXAMPLES.map((q) => (
                   <button
