@@ -10,6 +10,7 @@ import Footer from "./components/Footer";
 import Index from "./pages/Index";
 import Upload from "./pages/Upload";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import Documents from "./pages/Documents";
 import Debug from "./pages/Debug";
 import Topics from "./pages/Topics";
@@ -37,7 +38,7 @@ const AppRoutes = () => {
         <Toaster />
         <Sonner />
         <div className="min-h-screen bg-background flex flex-col">
-          {useLocation().pathname !== "/auth" && <Navigation />}
+          {!["/auth", "/reset-password"].includes(useLocation().pathname) && <Navigation />}
           <main className="flex-1">
             <Routes>
               <Route path="/" element={<ProtectedRoute element={<Index />} />} />
@@ -47,6 +48,7 @@ const AppRoutes = () => {
               <Route path="/debug" element={<AdminRoute element={<Debug />} />} />
               <Route path="/ask" element={<Navigate to="/" replace />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

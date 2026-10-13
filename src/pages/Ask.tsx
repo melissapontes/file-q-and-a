@@ -36,7 +36,7 @@ const Ask = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      content: 'Olá! Eu sou seu RAG Nefro & Uro Vet. Faça perguntas sobre os documentos que você me forneceu e eu tentarei responder com base no conteúdo deles',
+      content: 'Olá! Eu  RAG Nefro & Uro Vet. Faça perguntas sobre os documentos que você me forneceu e eu tentarei responder com base no conteúdo deles',
       sender: 'ai',
       timestamp: new Date(),
     }

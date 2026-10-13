@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { LogIn, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { LogIn, Mail, Lock, Eye, EyeOff, Send, ArrowLeft } from "lucide-react";
 import React from "react";
 import logo from "@/assets/logo.png";
 
@@ -15,6 +15,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -35,6 +36,26 @@ const Auth = () => {
     if (m.includes("email rate limit exceeded")) return "Muitas tentativas. Aguarde alguns minutos e tente novamente.";
     if (m.includes("network") || m.includes("fetch")) return "Erro de conexão. Verifique sua internet.";
     return msg;
+  };
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast({ title: "Erro ao enviar email", description: traduzirErro(error.message), variant: "destructive" });
+        return;
+      }
+      toast({ title: "Email enviado!", description: "Se o endereço estiver cadastrado, você receberá um link para redefinir a senha." });
+      setForgotMode(false);
+    } catch {
+      toast({ title: "Erro inesperado", description: "Tente novamente mais tarde.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,7 +90,12 @@ const Auth = () => {
         </div>
 
         <Card className="p-6 bg-glass border-glass backdrop-blur-xl shadow-soft">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={forgotMode ? handleForgot : handleSubmit} className="space-y-4">
+            {forgotMode && (
+              <p className="text-sm text-muted-foreground">
+                Informe seu email e enviaremos um link para redefinir a senha.
+              </p>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="email" className="flex items-center gap-2 text-sm">
                 <Mail size={14} />
@@ -86,6 +112,7 @@ const Auth = () => {
               />
             </div>
 
+            {!forgotMode && (
             <div className="space-y-1.5">
               <Label htmlFor="password" className="flex items-center gap-2 text-sm">
                 <Lock size={14} />
@@ -110,7 +137,17 @@ const Auth = () => {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => setForgotMode(true)}
+                  className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
             </div>
+            )}
 
             <Button
               type="submit"
@@ -120,7 +157,12 @@ const Auth = () => {
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Entrando...
+                  {forgotMode ? "Enviando..." : "Entrando..."}
+                </div>
+              ) : forgotMode ? (
+                <div className="flex items-center gap-2">
+                  <Send size={18} />
+                  Enviar link de recuperação
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -129,6 +171,17 @@ const Auth = () => {
                 </div>
               )}
             </Button>
+
+            {forgotMode && (
+              <button
+                type="button"
+                onClick={() => setForgotMode(false)}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft size={14} />
+                Voltar ao login
+              </button>
+            )}
           </form>
         </Card>
       </div>

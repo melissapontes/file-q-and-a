@@ -32,7 +32,7 @@ interface Message {
 }
 
 const WELCOME =
-  'Sou seu assistente em nefrologia e urologia veterinária. Faça uma pergunta — eu cruzo os documentos indexados e devolvo uma resposta objetiva, por espécie, e com as fontes citadas.';
+  'Sou seu assistente em nefrologia e urologia veterinárias. Faça uma pergunta. Eu cruzo os documentos indexados e devolvo uma resposta objetiva, por espécie, e com as fontes citadas.';
 
 // Perguntas-exemplo que já exercitam o filtro de espécie e a detecção de protocolo/doses.
 const EXAMPLES = [
@@ -193,7 +193,7 @@ const Index = () => {
             </div>
 
             <h1 className="font-serif text-3xl sm:text-[2.6rem] leading-[1.1] text-foreground max-w-xl">
-              O que você precisa saber sobre o rim e o trato urinário hoje?
+              O que você precisa saber sobre o trato urinário hoje?
             </h1>
             <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground max-w-lg">
               {WELCOME}
